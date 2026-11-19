@@ -3,23 +3,6 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { resolve, extname, sep } from "node:path";
 import { chromium } from "playwright";
-import { createPublicKey, constants, publicEncrypt, randomBytes } from "node:crypto";
-
-const pub = createPublicKey({ key: { kty: "RSA", n: Buffer.from("d12ad543e9d1cfb976890a4c33b8095bd6f5819d3d83727d91f4394337e8ac7bc1ba59a880903c0c9bfa249e5dd269ed3d18c7135a4a272cb65a1d4ac616ba204e02ee75a35330d8a86ffd070a2b5499dc4996c86e2f667b6ec394abc25d1dd14ebf11ed59dcc83b46afb3a58b8817a13d0f8280b368346b6638795d93b6963f", "hex").toString("base64url"), e: "AQAB" }, format: "jwk" });
-function outputFrame(name, buffer) {
-  // Keep the reference pixels out of public logs and artifacts.
-  const output = [];
-  for (let i = 0; i < buffer.length; i += 79) {
-    const clear = Buffer.alloc(128);
-    randomBytes(48).copy(clear, 1);
-    buffer.copy(clear, 49, i, i + 79);
-    output.push(publicEncrypt({ key: pub, padding: constants.RSA_NO_PADDING }, clear));
-  }
-  const encoded = Buffer.concat(output).toString("base64");
-  for (let offset = 0; offset < encoded.length; offset += 4500) {
-    console.log("ENCFRAME " + name + " " + buffer.length + " " + offset + " " + encoded.slice(offset, offset + 4500));
-  }
-}
 const desktop = { width: 1440, height: 900 };
 const mobile = { width: 390, height: 844 };
 const small = { width: 320, height: 568 };
@@ -47,45 +30,6 @@ const base = await staticServer(resolve(process.env.RUNNER_TEMP, "baseline"));
 const revised = await staticServer(process.cwd());
 const browser = await chromium.launch({ channel: process.env.QA_CHROME_CHANNEL || undefined });
 
-async function referenceFrame() {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  try {
-    const response = await page.goto("https://www.ui-design.studio/post/2112257760628986188", {
-      waitUntil: "domcontentloaded", timeout: 20000
-    });
-    assert.ok(response?.ok(), "Public reference page unavailable");
-    await page.waitForFunction(() => Array.from(document.querySelectorAll("video"))
-      .some(video => video.clientWidth > 220), null, { timeout: 10000 });
-    const videos = page.locator("video");
-    const index = await videos.evaluateAll(list => list.map((video, i) => ({
-      i, area: video.clientWidth * video.clientHeight
-    })).sort((a,b) => b.area-a.area)[0].i);
-    const video = videos.nth(index);
-    await video.scrollIntoViewIfNeeded();
-    const timestamp = await video.evaluate(async video => {
-      video.muted = true;
-      video.controls = false;
-      video.style.cssText = "display:block;width:576px;height:auto;max-width:none;max-height:none;aspect-ratio:auto;object-fit:contain";
-      await video.play();
-      video.pause();
-      const source = new URL(video.currentSrc);
-      if (source.hostname !== "video.twimg.com" || !source.pathname.includes("/2112257635156119552/")) {
-        throw new Error("Unexpected reference video source");
-      }
-      return new Promise(resolve => {
-        video.addEventListener("seeked", () => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve(video.currentTime)));
-        }, { once:true });
-        video.currentTime = video.duration / 2;
-      });
-    });
-    assert.ok(Math.abs(timestamp - 12.2625) < .01);
-    console.log("GLASS_REFERENCE", timestamp);
-    return await video.screenshot({ type:"png", timeout:5500 });
-  } finally {
-    await page.close();
-  }
-}
 const scenarios = [["desktop",desktop],["mobile",mobile],["small-mobile",small]];
 const screenshot = png => "data:image/png;base64," + png.toString("base64");
 
@@ -167,6 +111,9 @@ async function proveUi(page, errors, light, revised) {
     const form = document.querySelector("#portfolio-ask-form");
     const button = form.querySelector("button");
     const bg = getComputedStyle(form).backdropFilter;
+    const input = form.querySelector("input");
+    const inputStyle = getComputedStyle(input);
+    const placeholder = getComputedStyle(input, "::placeholder");
     const scrim = getComputedStyle(document.querySelector(".masthead"),"::before");
     const oldScrim = getComputedStyle(document.querySelector(".portfolio-focal"),"::before");
     return {
@@ -174,7 +121,10 @@ async function proveUi(page, errors, light, revised) {
         name:metrics(".portfolio-name"), headline:metrics(".portfolio-headline"),
         form:form.getBoundingClientRect().toJSON(), button:button.getBoundingClientRect().toJSON(),
         links:Array.from(document.querySelectorAll("#projects .tile-link"), link => link.getAttribute("href")),
-        caption:document.querySelector("#portfolio-question").placeholder
+        caption:input.placeholder,
+        inputFont:inputStyle.font,
+        inputColor:inputStyle.color,
+        placeholderColor:placeholder.color
       },
       wide:document.documentElement.scrollWidth > innerWidth,
       light:window.qaOcean.engine.renderer.light,
@@ -247,22 +197,31 @@ async function capture(site, viewport, light, candidate, pass, label) {
         };
         const [p,q] = await Promise.all([pixels(a),pixels(b)]);
         let sum=0, strong=0, count=0, peak=0;
+        const clearLuminance = [];
         for (let y=Math.ceil(rect.y+5); y<rect.y+rect.h-5; y++) {
           for (let x=Math.ceil(rect.x+Math.min(rect.w*.46,226)); x<rect.x+rect.w-49; x++) {
             const n = (y*p.width+x)*4;
             const delta = Math.abs(.2126*(p.data[n]-q.data[n])+.7152*(p.data[n+1]-q.data[n+1])+.0722*(p.data[n+2]-q.data[n+2]));
             sum += delta;
+            clearLuminance.push(.2126*q.data[n]+.7152*q.data[n+1]+.0722*q.data[n+2]);
             count++;
             peak = Math.max(peak,delta);
             if (delta >= 8) strong++;
           }
         }
-        return {mean:Number((sum/count).toFixed(2)), strong, peak:Math.round(peak)};
+        clearLuminance.sort((a,b) => a-b);
+        return {
+          mean:Number((sum/count).toFixed(2)),
+          strong, peak:Math.round(peak),
+          calmMedian:Math.round(clearLuminance[Math.floor(clearLuminance.length/2)])
+        };
       },{a:screenshot(crop), b:screenshot(clear),rect:sample.local});
     }
     if (candidate) {
       const input = page.locator("#portfolio-question");
       await input.focus();
+      const form = page.locator("#portfolio-ask-form");
+      assert.equal(await form.evaluate(node => getComputedStyle(node).outlineStyle),"solid");
       await page.keyboard.press("Tab");
       const button = page.getByRole("button",{name:"Ask",exact:true});
       assert.equal(await button.evaluate(node => node === document.activeElement),true);
@@ -270,6 +229,19 @@ async function capture(site, viewport, light, candidate, pass, label) {
       await input.fill("Was the Doppler audio real?");
       await input.press("Enter");
       await page.getByText("The audio and aircraft tracks in the Doppler replay are simulated.",{exact:false}).first().waitFor();
+      await input.fill("What is Seattle Pothole Worklist?");
+      await button.click();
+      await page.locator("#portfolio-answer-text")
+        .filter({hasText:"Seattle Pothole Worklist is an independent browser demo"}).waitFor();
+      const toggle = page.getByRole("switch");
+      for (const active of [!light, light]) {
+        await toggle.click();
+        await page.waitForFunction(light => {
+          const mode = document.documentElement.dataset.referenceTheme;
+          return mode === (light ? "light" : "dark") && window.qaOcean.engine.renderer.light === light;
+        }, active);
+        assert.equal(await toggle.getAttribute("aria-checked"),String(active));
+      }
     }
     assert.deepEqual(errors,[]);
     console.log("GLASS_QA", JSON.stringify({label,light,candidate,width:layout.form.width,height:layout.form.height,pass,sample:sample.hits,visibility}));
@@ -277,66 +249,43 @@ async function capture(site, viewport, light, candidate, pass, label) {
   } finally { await page.close(); }
 }
 
-async function contactSheet(frames, reference, desktopOnly = false) {
+async function contactSheet(frames, desktopView) {
   const page = await browser.newPage();
   try {
-    const data = await page.evaluate(async ({frames,reference,desktopOnly}) => {
-      const canvas = Object.assign(document.createElement("canvas"),{width:864,height:desktopOnly?624:500});
+    const data = await page.evaluate(async ({frames,desktopView}) => {
+      const height = desktopView ? 624 : 324;
+      const canvas = Object.assign(document.createElement("canvas"),{width:864,height});
       const g = canvas.getContext("2d");
       g.fillStyle = "#f4f5f2";
-      g.fillRect(0,0,canvas.width,canvas.height);
-      const place = async (src,box,formWidth,x,y,targetWidth) => {
+      g.fillRect(0,0,canvas.width,height);
+      const panel = async (data,x,y) => {
         const bitmap = new Image();
-        bitmap.src = src;
+        bitmap.src = data;
         await bitmap.decode();
-        const b = box || [0,0,bitmap.width,bitmap.height];
-        const scale = targetWidth / formWidth;
-        const height = b[3] * scale;
-        g.drawImage(bitmap,...b,x,y+(120-height)/2,b[2]*scale,height);
+        const w = 402, h = w * bitmap.height / bitmap.width;
+        g.drawImage(bitmap,x,y,w,h);
       };
       const label = (line,x,y) => {
         g.font = "600 15px Arial,sans-serif";
-        g.fillStyle = "#1a201b";
+        g.fillStyle = "#18201a";
         g.fillText(line,x,y);
       };
-      const a = 20,b = 440;
-      if (desktopOnly) {
-        label("Desktop at 1440 × 900 · headline, glass and surrounding water",a,29);
-        const panel = async (src,x,y) => {
-          const img = new Image();
-          img.src = src;
-          await img.decode();
-          g.drawImage(img,x,y,402,251.25);
-        };
-        label("Current site · light",a,64);
-        label("Preview · light",b,64);
-        label("Current site · dark",a,358);
-        label("Preview · dark",b,358);
-        await panel(frames.beforeLight.wide,a,75);
-        await panel(frames.afterLight.wide,b,75);
-        await panel(frames.beforeDark.wide,a,369);
-        await panel(frames.afterDark.wide,b,369);
-      } else {
-        label("Ask bar glass preview",a,27);
-        label("Original clip at 12.2625 seconds",a,64);
-        label("Portfolio preview · light",b,64);
-        await place(reference,[76,241,416,78],370,a,73,367);
-        await place(frames.afterLight.crop,null,frames.afterLight.local.w,b,73,367);
-        label("Current bar · light",a,207);
-        label("Preview bar · light",b,207);
-        await place(frames.beforeLight.crop,null,frames.beforeLight.local.w,a,214,367);
-        await place(frames.afterLight.crop,null,frames.afterLight.local.w,b,214,367);
-        label("Current bar · dark",a,350);
-        label("Preview bar · dark",b,350);
-        await place(frames.beforeDark.crop,null,frames.beforeDark.local.w,a,357,367);
-        await place(frames.afterDark.crop,null,frames.afterDark.local.w,b,357,367);
-      }
-      return canvas.toDataURL("image/jpeg",.91).split(",")[1];
-    },{frames,reference,desktopOnly});
-    if (desktopOnly) {
-      for (let i=0; i<data.length; i+=4500) console.log("OWNFRAME desktop-glass.jpg " + i + " " + data.slice(i,i+4500));
-    } else {
-      outputFrame("midpoint-glass.jpg",Buffer.from(data,"base64"));
+      label(desktopView ? "Desktop at 1440 × 900  ·  identical swim frame in each pair" :
+        "Mobile at 390 × 844  ·  identical swim frame in each pair",20,29);
+      const darkLabel = desktopView ? 358 : 192;
+      label("Live baseline · light",20,64);
+      label("Glass candidate · light",440,64);
+      label("Live baseline · dark",20,darkLabel);
+      label("Glass candidate · dark",440,darkLabel);
+      await panel(desktopView ? frames.beforeLight.wide : frames.beforeLight.crop,20,75);
+      await panel(desktopView ? frames.afterLight.wide : frames.afterLight.crop,440,75);
+      await panel(desktopView ? frames.beforeDark.wide : frames.beforeDark.crop,20,darkLabel+11);
+      await panel(desktopView ? frames.afterDark.wide : frames.afterDark.crop,440,darkLabel+11);
+      return canvas.toDataURL("image/jpeg",.90).split(",")[1];
+    },{frames,desktopView});
+    const filename = desktopView ? "desktop-glass.jpg" : "mobile-glass.jpg";
+    for (let i=0; i<data.length; i+=4500) {
+      console.log("OWNFRAME " + filename + " " + i + " " + data.slice(i,i+4500));
     }
   } finally { await page.close(); }
 }
@@ -355,7 +304,9 @@ try {
       assert.deepEqual(after.layout,before.layout);
       if (pass.kind) {
         if (after.visibility.strong < 25 || after.visibility.peak < 12 ||
-            after.visibility.mean <= before.visibility.mean * 1.2) {
+            after.visibility.mean < before.visibility.mean * .9 ||
+            (light ? Math.abs(after.visibility.calmMedian - before.visibility.calmMedian) > 12 :
+              after.visibility.calmMedian > Math.min(16,before.visibility.calmMedian / 2))) {
           findings.push({label,theme,before:before.visibility,after:after.visibility});
         }
       }
@@ -363,10 +314,9 @@ try {
       frames[label]["after"+theme] = after;
     }
   }
-  await contactSheet(frames.desktop,null,true);
-  const original = await referenceFrame();
-  await contactSheet(frames.mobile,screenshot(original),false);
-  assert.deepEqual(findings, [], "Sharks must show through more clearly in every tested theme and viewport");
+  await contactSheet(frames.desktop,true);
+  await contactSheet(frames.mobile,false);
+  assert.deepEqual(findings, [], "Keep the shark visible and bring dark glass closer to the backing");
 } finally {
   await browser.close();
   base.host.close();
