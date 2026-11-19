@@ -340,6 +340,10 @@ class World {
                     x = (W - projectStripWidth) / 4;
                     y = Math.min(H - 30, Math.max(H * 0.79, length + 30));
                     heading = Math.PI / 2;
+                } else if (W <= 360) {
+                    x = Math.min(W - 32, Math.max(W * 0.83, length + 12));
+                    y = Math.min(H * 0.36, 119);
+                    heading = 0.36;
                 } else {
                     x = Math.min(W - 18, Math.max(W * 0.81, length + 12));
                     y = W <= 620

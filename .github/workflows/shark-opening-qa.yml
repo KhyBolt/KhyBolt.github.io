@@ -20,12 +20,35 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Render the portfolio and verify opening frames
         run: node qa-opening-visual.mjs
-      - name: Inspect the public reference player
-        if: always()
-        run: node qa-public-reference.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: portfolio-before-and-after
+          path: qa-screenshots/
+          retention-days: 1
+  live:
+    needs: browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check GitHub Pages serves the exact tested assets
+        run: node qa-live-assets.mjs
+      - name: Set up the baseline and Chromium
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/baseline" 292fe300c9f9eed9aeac7215a1423771cc2e4aa2
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Run the opening-frame, keyboard, link and theme checks on GitHub Pages
+        run: node qa-opening-visual.mjs
+        env:
+          QA_TARGET: https://khybolt.github.io/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: live-portfolio-before-and-after
           path: qa-screenshots/
           retention-days: 1
