@@ -1046,6 +1046,22 @@ const REFERENCE_INK = {
             "#4d6421",
             "#445e1c"
         ]
+    },
+    whale: {
+        tint: [.28, 1.14, .84],
+        dark: ["#42e6ad", "#19c78d", "#72f5c7"],
+        light: ["#087a56", "#08664b", "#166d58"],
+        spot: ["#baffdf", "#053b32"]
+    },
+    saw: {
+        tint: [1.24, .40, .43],
+        dark: ["#ff5754", "#ff7367", "#f93d51"],
+        light: ["#922824", "#8d332b", "#a02a3a"]
+    },
+    angel: {
+        tint: [.74, .41, 1.26],
+        dark: ["#ce80ff", "#a979ff", "#c76bfc"],
+        light: ["#672b92", "#533390", "#6b2888"]
     }
 };
 const SKIN_RAMP = ":;t%SX8#@";
@@ -1060,6 +1076,7 @@ const FLAG_RIDGE = 4;
 const FLAG_EYE = 5;
 const FLAG_MARK = 6;
 const MARK_GLYPHS = "#%@";
+const SEGMENTS_PER_GROUP = 5;
 const SUBSAMPLES = [
     0.25,
     0.3,
@@ -1426,6 +1443,61 @@ const SHAPES = {
             0.62,
             0.43
         ]
+    },
+    whale: {
+        taperStart: 0.14,
+        halfWidth: (s)=>{
+            if (s < 0.14) return 0.12;
+            if (s < 0.82) return 0.024 + 0.096 * Math.pow(1 - (s - 0.14) / 0.68, 1.25);
+            return 0.024 * (1 - (s - 0.82) / 0.18);
+        },
+        head: { span: 0.154, sweep: 0.026, depth: 0.087, notch: 0, flat: true },
+        pectoral: [0.23, 0.50, 0.43, 0.235],
+        falcate: false,
+        pelvic: [0.54, 0.66, 0.64, 0.105],
+        caudal: 0.145,
+        dorsal: [0.38, 0.49],
+        secondDorsal: [0.70, 0.75],
+        eye: null,
+        gills: [0.12, 0.22]
+    },
+    saw: {
+        bodyWidth: 0.095,
+        taperStart: 0.46,
+        halfWidth: (s)=>{
+            if (s < 0.36) {
+                // Four coarse teeth per side stay distinct on the ASCII grid.
+                const tooth = 1 - Math.abs((s % 0.09) / 0.045 - 1);
+                return 0.022 + 0.066 * tooth;
+            }
+            if (s < 0.46) return 0.039 + 0.055 * smoothstep(0.36, 0.46, s);
+            if (s < 0.86) return 0.015 + 0.079 * Math.pow(1 - (s - 0.46) / 0.40, 1.2);
+            return 0.015 * (1 - (s - 0.86) / 0.14);
+        },
+        pectoral: [0.40, 0.58, 0.55, 0.165],
+        falcate: true,
+        pelvic: [0.63, 0.72, 0.74, 0.071],
+        caudal: 0.095,
+        dorsal: [0.54, 0.63],
+        secondDorsal: [0.73, 0.79],
+        eye: [0.38, 0.43],
+        gills: [0.43, 0.48]
+    },
+    angel: {
+        taperStart: 0.08,
+        halfWidth: (s)=>{
+            if (s < 0.08) return 0.11 + 0.01 * smoothstep(0, 0.08, s);
+            if (s < 0.56) return 0.028 + 0.092 * Math.pow(1 - (s - 0.08) / 0.48, 0.65);
+            return 0.028 * Math.pow(1 - (s - 0.56) / 0.44, 0.8);
+        },
+        pectoral: [0.09, 0.56, 0.24, 0.325],
+        falcate: false,
+        pelvic: [0.48, 0.66, 0.58, 0.15],
+        caudal: 0.048,
+        dorsal: [0.64, 0.71],
+        secondDorsal: [0.77, 0.82],
+        eye: [0.06, 0.14],
+        gills: [0.17, 0.23]
     }
 };
 const KINDS = Object.keys(SHAPES);
@@ -1488,6 +1560,8 @@ class AsciiRenderer {
     spine = new Float32Array(SHARK_NODES * 2);
     arc = new Float32Array(SHARK_NODES);
     segment = new Float64Array((SHARK_NODES - 1) * 6);
+    segmentBounds = new Float64Array(Math.ceil((SHARK_NODES - 1) / SEGMENTS_PER_GROUP) * 4);
+    lastNearest = 0;
     surfaceCandidates = new Uint8Array(0);
     arcTotal = 1;
     shape = SHAPES.classic;
@@ -1676,19 +1750,30 @@ class AsciiRenderer {
         for(let i = 0; i < heat.length; i++)heat[i] *= heatDecay;
     }
     sampleShark(px, py, L) {
-        const { segment, arc } = this;
+        const { segment, arc, segmentBounds } = this;
         let best = Infinity, nearest = 0, parameter = 0;
-        for(let j = 0; j < segment.length; j += 6){
-            const ax = segment[j], ay = segment[j + 1], sx = segment[j + 2], sy = segment[j + 3];
-            const u = clamp(((px - ax) * sx + (py - ay) * sy) / segment[j + 4], 0, 1);
-            const dx = px - (ax + sx * u), dy = py - (ay + sy * u);
-            const d2 = dx * dx + dy * dy;
-            if (d2 < best) {
-                best = d2;
-                nearest = j;
-                parameter = u;
+        const previous = this.lastNearest;
+        const upperBound = (px - segment[previous]) ** 2 + (py - segment[previous + 1]) ** 2;
+        const stride = 6 * SEGMENTS_PER_GROUP;
+        // Any point on the spine is an upper bound. A group box gives a lower bound.
+        for(let g = 0, from = 0; g < segmentBounds.length; g += 4, from += stride){
+            const x = Math.max(0, segmentBounds[g] - px, px - segmentBounds[g + 2]);
+            const y = Math.max(0, segmentBounds[g + 1] - py, py - segmentBounds[g + 3]);
+            if (x * x + y * y > Math.min(upperBound, best)) continue;
+            const end = Math.min(from + stride, segment.length);
+            for(let j = from; j < end; j += 6){
+                const ax = segment[j], ay = segment[j + 1], sx = segment[j + 2], sy = segment[j + 3];
+                const u = clamp(((px - ax) * sx + (py - ay) * sy) / segment[j + 4], 0, 1);
+                const dx = px - (ax + sx * u), dy = py - (ay + sy * u);
+                const d2 = dx * dx + dy * dy;
+                if (d2 < best) {
+                    best = d2;
+                    nearest = j;
+                    parameter = u;
+                }
             }
         }
+        this.lastNearest = nearest;
         const ax = segment[nearest], ay = segment[nearest + 1];
         const sx = segment[nearest + 2], sy = segment[nearest + 3], len = segment[nearest + 5];
         const bestSign = sx * (py - ay) - sy * (px - ax) >= 0 ? 1 : -1;
@@ -1729,7 +1814,10 @@ class AsciiRenderer {
             const facing = (bestNx * -0.6 + bestNy * -0.8) * across;
             let shade = 0.58 - across * across * 0.42 + facing * 0.26;
             let flag = FLAG_BODY;
-            if (s > shape.dorsal[0] && s < shape.dorsal[1] && across < 0.3) {
+            if (shape === SHAPES.saw && s < 0.36 && a > 0.028 * L) {
+                flag = FLAG_RIDGE;
+                shade = 0.82;
+            } else if (s > shape.dorsal[0] && s < shape.dorsal[1] && across < 0.3) {
                 flag = FLAG_RIDGE;
                 shade = 1;
             } else if (s > shape.secondDorsal[0] && s < shape.secondDorsal[1] && across < 0.4) {
@@ -1766,6 +1854,13 @@ class AsciiRenderer {
         return false;
     }
     marked(s, v, L, across) {
+        if (this.shape === SHAPES.whale) {
+            if (s < 0.13 || s > 0.81 || across > 0.91) return false;
+            const row = v / (L * 0.062);
+            const band = Math.round(row);
+            const column = s / 0.086 - (band % 2 === 0 ? 0 : 0.5);
+            return (row - band) ** 2 + (column - Math.round(column)) ** 2 < 0.13;
+        }
         if (this.shape === SHAPES.tiger) {
             if (s < 0.2 || s > 0.9 || across > 0.85) return false;
             const wobble = 0.35 * Math.sin(v / L * 25 + s * 5);
@@ -1820,6 +1915,11 @@ class AsciiRenderer {
             const reachFin = this.shape.pectoral[3];
             this.finTipRight = L * reachFin * flex * (1 - bank);
             this.finTipLeft = L * reachFin * flex * (1 + bank);
+            if (this.shape === SHAPES.angel) {
+                // Keep even a banked wing inside the existing raster and shore bounds.
+                this.finTipRight = Math.min(this.finTipRight, L * 0.35);
+                this.finTipLeft = Math.min(this.finTipLeft, L * 0.35);
+            }
             let minX = Infinity;
             let minY = Infinity;
             let maxX = -Infinity;
@@ -1839,7 +1939,25 @@ class AsciiRenderer {
             const skipBeyond = reach + Math.hypot(cw, ch);
             const candidates = this.surfaceCandidates;
             const shape = this.shape;
-            const { segment } = this;
+            const bodyWidth = shape.bodyWidth ?? 0.12;
+            const taperStart = shape.taperStart ?? 1;
+            const { segment, segmentBounds } = this;
+            for(let n = 0, g = 0; n < N - 1; n += SEGMENTS_PER_GROUP, g += 4){
+                let left = spine[n * 2], right = left;
+                let top = spine[n * 2 + 1], bottom = top;
+                const end = Math.min(n + SEGMENTS_PER_GROUP, N - 1);
+                for(let k = n + 1; k <= end; k++){
+                    const x = spine[k * 2], y = spine[k * 2 + 1];
+                    left = Math.min(left, x);
+                    right = Math.max(right, x);
+                    top = Math.min(top, y);
+                    bottom = Math.max(bottom, y);
+                }
+                segmentBounds[g] = left;
+                segmentBounds[g + 1] = top;
+                segmentBounds[g + 2] = right;
+                segmentBounds[g + 3] = bottom;
+            }
             candidates.fill(0);
             for(let k = 0, j = 0; k < N - 1; k++, j += 6){
                 const ax = spine[k * 2], ay = spine[k * 2 + 1];
@@ -1853,7 +1971,8 @@ class AsciiRenderer {
                 segment[j + 4] = len2;
                 segment[j + 5] = Math.sqrt(len2);
                 const s0 = arc[k] / this.arcTotal, s1 = (arc[k] + segment[j + 5]) / this.arcTotal;
-                let width = L * .12;
+                // The new outlines taper monotonically past this point.
+                let width = L * (s0 >= taperStart ? shape.halfWidth(s0) : bodyWidth);
                 if (shape.head && s0 <= shape.head.sweep + shape.head.depth + shape.head.notch) width = Math.max(width, L * shape.head.span);
                 if (s0 <= shape.pectoral[2] && s1 >= shape.pectoral[0]) width = Math.max(width, this.finTipRight, this.finTipLeft);
                 if (s0 <= shape.pelvic[2] && s1 >= shape.pelvic[0]) width = Math.max(width, L * shape.pelvic[3]);
@@ -1945,7 +2064,7 @@ class AsciiRenderer {
                 glyph = "o";
             } else if (flag === FLAG_MARK) {
                 level = 24 + shade * 22;
-                glyph = MARK_GLYPHS[(key >>> 8) % MARK_GLYPHS.length];
+                glyph = ink.spot ? "o" : MARK_GLYPHS[(key >>> 8) % MARK_GLYPHS.length];
             } else if (flag === FLAG_FIN) {
                 level = 40 + shade * 120;
                 glyph = FIN_GLYPHS[(key >>> 8) % FIN_GLYPHS.length];
@@ -1960,7 +2079,7 @@ class AsciiRenderer {
             ctx.fillRect(x + 1, y + 1, cw - 1, ch - 1);
             let color;
             if (flag === FLAG_EYE) color = "#9aa0ad";
-            else if (flag === FLAG_MARK) color = `rgb(${Math.round(70 * tr)},${Math.round(70 * tg)},${Math.round(70 * tb)})`;
+            else if (flag === FLAG_MARK) color = ink.spot?.[this.light ? 1 : 0] ?? `rgb(${Math.round(70 * tr)},${Math.round(70 * tg)},${Math.round(70 * tb)})`;
             else if (roll < (stacked ? 0.09 : 0.11)) color = accents[key % accents.length];
             else if (roll < (stacked ? 0.13 : 0.14)) color = this.light && level > 112 ? "#153039" : "#ffffff";
             else color = this.light ? level > 117 ? "#122027" : "#f5f7fa" : shade > 0.55 ? "#0e0f13" : "#1b1d24";
@@ -2212,17 +2331,34 @@ class OceanEngine {
     };
 }
 
+function portfolioSharks() {
+    const newcomers = [
+        { kind: "whale", size: 1.02 },
+        { kind: "saw", size: 0.92 },
+        { kind: "angel", size: 0.84 }
+    ];
+    const opener = newcomers.splice(randInt(0, newcomers.length - 1), 1)[0];
+    if (randInt(0, 1)) newcomers.reverse();
+    const classicAndTiger = [{ kind: "classic", size: 1.04 }, { kind: "tiger", size: 0.78 }];
+    const legacyInk = [
+        { kind: "thresher", size: 0.90, stackedInk: true },
+        { kind: "nurse", size: 0.76, stackedInk: true }
+    ];
+    const warm = randInt(0, 1);
+    const legacy = randInt(0, 1);
+    // One newcomer opens each visit. The other two get the first clear passages.
+    return [
+        classicAndTiger[warm], legacyInk[legacy], { kind: "greathammer", size: 1.19 }, opener,
+        ...newcomers, classicAndTiger[1 - warm],
+        { kind: "mako", size: 0.86 }, { kind: "hammerhead", size: 0.84 },
+        { kind: "zebra", size: 0.80 }, legacyInk[1 - legacy]
+    ];
+}
+
 const canvas = document.getElementById("ocean-canvas");
 if (canvas && typeof ResizeObserver !== "undefined" && typeof IntersectionObserver !== "undefined") {
   try {
-    const animals = [
-      // Start with four; the rest swim in as the earlier sharks clear an edge.
-      {kind:"classic",size:1.04}, {kind:"mako",size:.86},
-      {kind:"greathammer",size:1.19}, {kind:"tiger",size:.78},
-      {kind:"thresher",size:.90,stackedInk:true}, {kind:"hammerhead",size:.84},
-      {kind:"zebra",size:.80}, {kind:"nurse",size:.76,stackedInk:true},
-    ];
-    const engine = new OceanEngine(canvas, animals, document.documentElement.dataset.referenceTheme === "light");
+    const engine = new OceanEngine(canvas, portfolioSharks(), document.documentElement.dataset.referenceTheme === "light");
     engine.setPaused(document.hidden);
     window.addEventListener("portfolio-motion", () => engine.setPaused(document.hidden));
     window.addEventListener("reference-theme", event => engine.setTheme(Boolean(event.detail.light)));
