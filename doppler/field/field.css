@@ -1,0 +1,44 @@
+.field-intro {
+  padding: clamp(38px, 6vw, 64px) 0 clamp(30px, 5vw, 52px);
+}
+.field-intro h1 {
+  margin: .16em 0 .24em;
+  font-size: clamp(2.55rem, 7vw, 5.9rem);
+  letter-spacing: -.076em;
+  font-weight: 670;
+  line-height: .98;
+}
+.field-intro > p:last-child, .field-chapter > p {
+  max-width: 68ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.field-intro > p:last-child { font-size: clamp(1.02rem, 2.3vw, 1.29rem); }
+.field-chapter > p { margin-top: 12px; }
+.field-figure { margin: 21px 0 0; }
+.field-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+}
+.field-figure figcaption { margin-top: 8px; }
+.field-table-wrap { overflow-x: auto; margin-top: 17px; }
+.field-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: .9rem;
+  line-height: 1.4;
+  text-align: left;
+}
+.field-table th, .field-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 11px 12px 11px 0;
+  vertical-align: top;
+}
+.field-table thead th { color: var(--dim); font-weight: 550; }
+.field-table tbody th { color: var(--ink); font-weight: 620; }
+.field-table td { color: var(--muted); }
+.field-table th:first-child { min-width: 140px; }
+.field-table td:last-child { padding-right: 0; }
+.field-chapter .caption { margin-top: 19px; }

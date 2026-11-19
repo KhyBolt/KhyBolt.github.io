@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1110">
+  <meta name="description" content="A known-answer Doppler benchmark with real Eclipse Soundscapes audio and historical ADS-B tracks.">
+  <title>Field benchmark | Khy Bolt</title>
+  <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./field.css">
+</head>
+<body>
+  <a class="skip" href="#result">Skip to the result</a>
+  <header class="top shell">
+    <a href="../" class="top-link"><span aria-hidden="true">←</span> Synthetic demo</a>
+    <a href="https://github.com/KhyBolt/aircraft-doppler" class="top-link source-link">View source <span aria-hidden="true">↗</span></a>
+  </header>
+  <main class="shell">
+    <div class="field-intro">
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Real field recording</p>
+      <h1>Eclipse Soundscapes 505</h1>
+      <p>A known-answer replay from a public research station in Dayton, Ohio. The solver swept a 10 × 10 km area and allowed a five-minute clock offset in either direction.</p>
+    </div>
+    <section class="chapter field-chapter" id="result" aria-labelledby="result-title">
+      <h2 id="result-title">The solver abstained</h2>
+      <p>The registered five-minute clip yielded one usable pitch ridge. The lowest-residual point was 395 m from the published station. The fit passed only half of the withheld audio blocks, and the near-best positions spanned 0.70 by 2.38 km.</p>
+      <figure class="field-figure">
+        <img src="./eclipse-505.webp" width="1300" height="681" alt="Dayton topo map with the 10 km search square, published station, and lowest-residual point beside the real recording’s spectrogram and selected ridge.">
+        <figcaption class="caption">Each colored square is a 500 m grid sample. Colors show pitch fit error in hertz. The star marks the published station, and the diamond marks the lowest-residual candidate.</figcaption>
+      </figure>
+    </section>
+    <section class="chapter field-chapter" aria-labelledby="runs-title">
+      <h2 id="runs-title">Replay results</h2>
+      <div class="field-table-wrap" tabindex="0" role="region" aria-label="Benchmark replay results">
+        <table class="field-table">
+          <thead><tr><th scope="col">Window</th><th scope="col">Ridges</th><th scope="col">Solver outcome</th><th scope="col">Diagnostic error</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Registered · 5 min</th><td>1</td><td>Abstained</td><td>395 m</td></tr>
+            <tr><th scope="row">Extended · 30 min, 25 m grid</th><td>2</td><td>120 s and 180 s caps reached</td><td>—</td></tr>
+            <tr><th scope="row">Extended · 30 min, 100 m grid</th><td>2</td><td>Abstained in 78 s</td><td>1.04 km</td></tr>
+            <tr><th scope="row">Adjacent · 15 min</th><td>0</td><td>Abstained</td><td>—</td></tr>
+            <tr><th scope="row">Wrong time · +2 h</th><td>1</td><td>Abstained</td><td>5.25 km</td></tr>
+            <tr><th scope="row">Wrong audio · 5 min</th><td>0</td><td>Abstained</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The registered clip was development data for the edge-aware detector. The adjacent clip was fixed before listening and came from the same station. The Dayton-area prior was selected with the station location already public. The published coordinates entered scoring only after inference ended.</p>
+    </section>
+    <section class="chapter field-chapter" aria-labelledby="replay-title">
+      <h2 id="replay-title">Reproduce the benchmark</h2>
+      <p>Use the protocol to retrieve the precise WAV interval, crop the dated flight archive, and run the supplied comparisons and controls. The station record contains the original audio.</p>
+      <div class="evidence-links">
+        <a href="https://github.com/KhyBolt/aircraft-doppler/blob/main/benchmarks/eclipse-505-protocol.md">Protocol and commands</a>
+        <a href="https://doi.org/10.5281/zenodo.21808323">Eclipse Soundscapes recording</a>
+        <a href="https://arxiv.org/html/2611.08791v1#S4.SS2">AircraftWitness study</a>
+      </div>
+      <p class="caption">Audio recorded by Eclipse Soundscapes’ volunteer scientist and archived by Henry Winter and MaryKay Severino, CC BY 4.0. Historical trajectories from adsb.lol contributors, ODbL 1.0. Basemap from USGS The National Map.</p>
+    </section>
+  </main>
+  <footer class="shell footer"><span>Khy Bolt</span><a href="../">Back to the synthetic demo</a></footer>
+</body>
+</html>
