@@ -1,0 +1,5 @@
+/* Center the single public project without changing the underlying scene. */
+.public-portfolio .project-grid {
+  grid-template-columns: minmax(0, 25rem);
+  justify-content: center;
+}
