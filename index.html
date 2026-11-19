@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="./assets/reference.css?v=3c0a95a69a355b7d">
   <script src="./assets/reference-theme.js?v=d18b26892c06b6e3"></script>
   <link rel="stylesheet" href="./assets/public.css">
+  <link rel="stylesheet" href="./assets/ask.css">
+  <script type="module" src="./assets/ask.mjs"></script>
   <script src="./assets/home.js" defer></script>
   <script src="./assets/site-ocean/reference-ocean.js?v=b1dc8e2bf365b296" defer></script>
 </head>
@@ -28,6 +30,23 @@
       </h1>
       <p class="portfolio-label">Portfolio</p>
     </header>
+    <section class="portfolio-ask" aria-label="Ask about Khy Bolt’s portfolio">
+      <form id="portfolio-ask-form" data-endpoint="" hidden>
+        <label class="screen-reader" for="portfolio-question">Ask me about my projects</label>
+        <input id="portfolio-question" name="question" type="text" maxlength="240" enterkeyhint="go"
+          autocomplete="off" placeholder="Ask me about my projects" required>
+        <button type="submit">Ask</button>
+      </form>
+      <div class="ask-suggestions" id="portfolio-ask-suggestions" hidden>
+        <button type="button" data-question="Was the Doppler audio real?">Was the Doppler audio real?</button>
+        <button type="button" data-question="What data does the Seattle worklist use?">What data does the Seattle worklist use?</button>
+      </div>
+      <p class="screen-reader ask-status" id="portfolio-ask-status" role="status" aria-live="polite"></p>
+      <div class="ask-answer" id="portfolio-answer" hidden>
+        <p id="portfolio-answer-text"></p>
+        <ul id="portfolio-answer-links" aria-label="Answer sources"></ul>
+      </div>
+    </section>
     <ul class="project-grid" id="projects" aria-label="Projects">
       <li class="project-tile">
         <a class="tile-link" href="./doppler/" aria-label="Doppler, open synthetic aircraft acoustics demo">
