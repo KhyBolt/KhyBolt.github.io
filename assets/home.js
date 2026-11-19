@@ -118,9 +118,9 @@
   for (const tile of document.querySelectorAll("[data-tile]")) {
     const frames = [...tile.querySelectorAll("img[data-frame]")];
     const step = tile.querySelector(".frame-step");
-    if (!step || frames.length < 2) continue;
+    if (frames.length < 2) continue;
     let current=0, expected=0, generation=0, pointer=false, focus=false, timer=0;
-    const stepTitle=step.getAttribute("aria-label");
+    const stepTitle=step?.getAttribute("aria-label");
     const set = (next,manual=false) => {
       expected=(next+frames.length)%frames.length;
       const ticket=++generation, entry=frames[expected];
@@ -129,9 +129,11 @@
         if (ticket!==generation || !entry.naturalWidth) return;
         current=expected;
         frames.forEach((picture,i)=> {picture.hidden=i!==current;});
-        const count=String(current+1).padStart(2,"0")+" / "+String(frames.length).padStart(2,"0");
-        step.querySelector("span").textContent=count;
-        if(manual) step.setAttribute("aria-label",stepTitle+". Frame "+(current+1)+" of "+frames.length+".");
+        if (step) {
+          const count=String(current+1).padStart(2,"0")+" / "+String(frames.length).padStart(2,"0");
+          step.querySelector("span").textContent=count;
+          if(manual) step.setAttribute("aria-label",stepTitle+". Frame "+(current+1)+" of "+frames.length+".");
+        }
       };
       if (entry.complete && entry.naturalWidth) show(); else entry.decode().then(show,()=>{});
     };
@@ -152,8 +154,8 @@
         set(expected+(e.key==="ArrowRight"?1:-1),true);resetTimer();
       }
     });
-    step.addEventListener("click",e=>{e.stopPropagation();set(expected+1,true);resetTimer();});
+    step?.addEventListener("click",e=>{e.stopPropagation();set(expected+1,true);resetTimer();});
     window.addEventListener("portfolio-motion",resetTimer);
-    step.hidden=false;
+    if (step) step.hidden=false;
   }
 })();

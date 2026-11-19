@@ -37,7 +37,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .hero { padding: clamp(37px, 6.3vw, 88px) 0 clamp(33px, 5vw, 66px); }
 .eyebrow { display: flex; align-items: center; gap: 9px; color: var(--dim); font-size: .7rem; letter-spacing: .105em; line-height: 1.5; text-transform: uppercase; }
 .dot { display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--mint); }
-.hero h1 { font-size: clamp(4.25rem, 11vw, 9.2rem); font-weight: 670; letter-spacing: -.098em; line-height: .93; margin: .085em 0 .16em; }
+.hero h1 { font-size: clamp(3rem, 11vw, 9.2rem); font-weight: 670; letter-spacing: -.098em; line-height: .93; margin: .085em 0 .16em; }
 .hero h1 span { color: var(--mint); }
 .hero > p:last-child { color: var(--muted); font-size: clamp(1.06rem, 2.3vw, 1.5rem); letter-spacing: -.024em; line-height: 1.42; max-width: 37rem; }
 
