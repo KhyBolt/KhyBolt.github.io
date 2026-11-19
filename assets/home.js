@@ -100,7 +100,7 @@
       button.title=label.textContent;
       button.hidden=false;
     }
-    if(!reduced && !paused && !document.hidden) {
+    if(ctx && !reduced && !paused && !document.hidden) {
       timeBase=performance.now()-elapsed*1000;
       frame=requestAnimationFrame(draw);
     } else paint(elapsed);

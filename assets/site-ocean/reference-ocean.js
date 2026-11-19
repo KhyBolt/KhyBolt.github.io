@@ -177,7 +177,7 @@ const SHARK_PASSAGES = [
     { axis: 1, sign: -1, heading: -Math.PI / 2, x: 0, y: -1 },
     { axis: 1, sign: 1, heading: Math.PI / 2, x: 0, y: 1 }
 ];
-const sharkBaseLength = (minSide)=>clamp(minSide * 0.44, 170, 430);
+const sharkBaseLength = (minSide)=>clamp(minSide * 0.50, 195, 485);
 const DEFAULT_SHARKS = [
     {
         kind: "classic",
@@ -327,10 +327,32 @@ class World {
             const orbitRadius = minSide * rand(0.28, 0.4);
             const a = i / sharkCount * TAU + rand(-0.4, 0.4);
             const orbitDir = i % 2 === 0 ? 1 : -1;
-            const x = W / 2 + Math.cos(a) * orbitRadius * (W / minSide) * 0.9;
-            const y = H / 2 + Math.sin(a) * orbitRadius;
-            const heading = a + orbitDir * Math.PI / 2;
-            const shark = this.makeShark(this.sharkSpecs[i], x, y, heading, orbitDir, orbitRadius);
+            const spec = this.sharkSpecs[i];
+            let x = W / 2 + Math.cos(a) * orbitRadius * (W / minSide) * 0.9;
+            let y = H / 2 + Math.sin(a) * orbitRadius;
+            let heading = a + orbitDir * Math.PI / 2;
+            if (spec.kind === "greathammer") {
+                const length = sharkBaseLength(minSide) * spec.size;
+                // Use the margin beside the project cards when it fits the full head.
+                // In tighter layouts start broadside in the open space above the cards.
+                const projectStripWidth = 832;
+                if (W >= projectStripWidth + length * 1.04) {
+                    x = (W - projectStripWidth) / 4;
+                    y = Math.min(H - 30, Math.max(H * 0.79, length + 30));
+                    heading = Math.PI / 2;
+                } else if (W <= 360) {
+                    x = Math.min(W - 32, Math.max(W * 0.83, length + 12));
+                    y = Math.min(H * 0.36, 119);
+                    heading = 0.36;
+                } else {
+                    x = Math.min(W - 18, Math.max(W * 0.81, length + 12));
+                    y = W <= 620
+                        ? Math.min(H * 0.36, 145)
+                        : Math.max(length * 0.24 + 12, Math.min(H * 0.20, 145));
+                    heading = 0;
+                }
+            }
+            const shark = this.makeShark(spec, x, y, heading, orbitDir, orbitRadius);
             shark.eligibleAt = this.time + 2 * i;
             this.sharks.push(shark);
         }
@@ -914,14 +936,14 @@ const STACKED_LIGHT_ACCENTS = [
 const REFERENCE_INK = {
     classic: {
         tint: [
-            1.14,
-            .78,
-            .37
+            1.15,
+            .62,
+            .27
         ],
         dark: [
-            "#f9c372",
+            "#ff932f",
             "#f2a851",
-            "#f2d489"
+            "#ffb331"
         ],
         light: [
             "#60360e",
@@ -964,9 +986,9 @@ const REFERENCE_INK = {
         ]
     },
     zebra: {
-        tint: [1.07, 1.01, .86],
-        dark: ["#d7c5a5", "#bdab8b", "#ece2cf"],
-        light: ["#654d34", "#6c5c45", "#534b3d"]
+        tint: [1.16, .48, .83],
+        dark: ["#ff73b0", "#ee4b96", "#f58ce5"],
+        light: ["#86204f", "#7c235c", "#842a74"]
     },
     nurse: {
         tint: [
@@ -1211,10 +1233,11 @@ const SHAPES = {
             return classicHalfWidth(s) * 0.95;
         },
         head: {
-            span: 0.21,
-            sweep: 0.006,
-            depth: 0.085,
-            notch: 0.014
+            span: 0.235,
+            sweep: 0,
+            depth: 0.104,
+            notch: 0,
+            flat: true
         },
         pectoral: [
             0.16,
@@ -1376,9 +1399,9 @@ const SHAPES = {
             0.22
         ],
         tint: [
-            1.1,
-            0.96,
-            0.76
+            1.15,
+            0.62,
+            0.43
         ]
     }
 };
@@ -1656,15 +1679,26 @@ class AsciiRenderer {
         this.hitS = s;
         this.hitV = a * bestSign;
         const head = this.shape.head;
-        if (head && u < L * (head.sweep + head.depth + head.notch)) {
-            const span = L * head.span;
-            const r = a / span;
-            const front = L * head.sweep * r * r + L * head.notch * Math.max(0, 1 - r / 0.14);
-            const depth = L * head.depth * (1 - 0.2 * r * r * r * r);
-            if (r <= 1 && u >= front && u <= front + depth) {
-                this.hitFlag = r > 0.84 ? FLAG_EYE : FLAG_BODY;
-                this.hitShade = r > 0.84 ? 0 : 0.62 - 0.2 * r + (u < front + L * 0.012 ? 0.1 : 0);
-                return true;
+        if (head && (head.flat || u < L * (head.sweep + head.depth + head.notch))) {
+            let along = u, across = a;
+            if (head.flat) {
+                // A signed head-local projection keeps the front flat and the lobe tips square.
+                const hx = px - segment[0], hy = py - segment[1];
+                const dx = segment[2], dy = segment[3], length = segment[5];
+                along = (hx * dx + hy * dy) / length;
+                across = Math.abs(dx * hy - dy * hx) / length;
+                if (s < 0.05 && along < 0) return false;
+            }
+            const r = across / (L * head.span);
+            if (r <= 1) {
+                const front = L * head.sweep * r * r + L * head.notch * Math.max(0, 1 - r / 0.14);
+                const depth = L * head.depth * (head.flat ? 1 : 1 - 0.2 * r * r * r * r);
+                if (along >= front && along <= front + depth) {
+                    const eye = r > 0.84 && (!head.flat || along > depth * 0.25 && along < depth * 0.7);
+                    this.hitFlag = eye ? FLAG_EYE : FLAG_BODY;
+                    this.hitShade = eye ? 0 : 0.62 - 0.2 * r + (along < front + L * 0.012 ? 0.1 : 0);
+                    return true;
+                }
             }
         }
         if (a <= w) {
@@ -2160,10 +2194,10 @@ if (canvas && typeof ResizeObserver !== "undefined" && typeof IntersectionObserv
   try {
     const animals = [
       // Start with four; the rest swim in as the earlier sharks clear an edge.
-      {kind:"classic",size:1.04}, {kind:"mako",size:.79},
-      {kind:"greathammer",size:.99}, {kind:"tiger",size:.64},
-      {kind:"thresher",size:.75,stackedInk:true}, {kind:"hammerhead",size:.69},
-      {kind:"zebra",size:.63}, {kind:"nurse",size:.61,stackedInk:true},
+      {kind:"classic",size:1.04}, {kind:"mako",size:.86},
+      {kind:"greathammer",size:1.19}, {kind:"tiger",size:.78},
+      {kind:"thresher",size:.90,stackedInk:true}, {kind:"hammerhead",size:.84},
+      {kind:"zebra",size:.80}, {kind:"nurse",size:.76,stackedInk:true},
     ];
     const engine = new OceanEngine(canvas, animals, document.documentElement.dataset.referenceTheme === "light");
     engine.setPaused(document.hidden);
