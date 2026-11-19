@@ -2,20 +2,27 @@
   padding-top: clamp(11.5rem, 33.5svh, 25rem);
 }
 
-.portfolio-focal {
+.public-portfolio {
   --focal-ink: #f2f7f5;
   --focal-muted: #c5d0cd;
   --focal-tint: rgba(250, 250, 247, .045);
-  --glass-fill: rgba(0, 0, 0, .14);
-  --glass-edge: rgba(224, 224, 224, .075);
-  --glass-sheen: rgba(255, 255, 255, .015);
+  --glass-fill: rgba(0, 0, 0, .035);
+  --glass-edge: rgba(182, 190, 195, .14);
+  --glass-bevel: rgba(213, 218, 222, .10);
+  --glass-glint: rgba(255, 255, 255, .22);
+  --glass-active-edge: rgba(220, 226, 230, .30);
+  --glass-keyboard: #c9d0d2;
   --glass-button: rgba(245, 245, 245, .10);
   --glass-button-active: rgba(245, 245, 245, .18);
   --glass-ink: #f7f8f5;
-  --glass-muted: #e0e3dd;
-  --glass-text-shadow: 0 1px 3px #0009;
+  --glass-muted: #d2d6d5;
+  --glass-text-shadow: 0 0 2px #000e;
+  --glass-text-edge: rgba(0, 0, 0, .94);
   --answer-fill: rgba(13, 20, 20, .94);
   --answer-edge: #536660;
+  --glass-filter: blur(.55px) saturate(1.07);
+}
+.portfolio-focal {
   position: relative;
   display: grid;
   justify-items: center;
@@ -23,18 +30,22 @@
   margin: 0 auto clamp(1.85rem, 5vmin, 3.6rem);
   color: var(--focal-ink);
 }
-[data-reference-theme="light"] .portfolio-focal {
+[data-reference-theme="light"] .public-portfolio {
   --focal-ink: #171c1a;
   --focal-muted: #46504b;
   --focal-tint: rgba(255, 255, 253, .34);
-  --glass-fill: rgba(133, 137, 125, .13);
-  --glass-edge: rgba(116, 119, 111, .22);
-  --glass-sheen: rgba(255, 255, 252, .24);
+  --glass-fill: rgba(255, 255, 252, .045);
+  --glass-edge: rgba(119, 120, 111, .26);
+  --glass-bevel: rgba(129, 129, 120, .12);
+  --glass-glint: rgba(255, 255, 253, .72);
+  --glass-active-edge: rgba(97, 98, 91, .46);
+  --glass-keyboard: #444641;
   --glass-button: rgba(63, 65, 59, .14);
   --glass-button-active: rgba(63, 65, 59, .22);
   --glass-ink: #252822;
-  --glass-muted: #454941;
-  --glass-text-shadow: 0 1px 2px #fffd;
+  --glass-muted: #454944;
+  --glass-text-shadow: 0 0 2px #fffe;
+  --glass-text-edge: rgba(255, 255, 253, .94);
   --answer-fill: rgba(248, 251, 248, .94);
   --answer-edge: #85958d;
 }
@@ -87,14 +98,37 @@
   border: 1px solid var(--glass-edge);
   border-radius: .65rem;
   color: var(--glass-ink);
-  background: linear-gradient(168deg, var(--glass-sheen), transparent 65%), var(--glass-fill);
-  box-shadow: inset 0 1px 0 var(--glass-sheen), 0 2px 8px rgba(0, 0, 0, .06);
-  -webkit-backdrop-filter: blur(3.5px) saturate(.83);
-  backdrop-filter: blur(3.5px) saturate(.83);
+  position: relative;
+  background: var(--glass-fill);
+  box-shadow: inset 0 0 0 .5px var(--glass-bevel), 0 2px 8px rgba(0, 0, 0, .05);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+}
+.portfolio-ask form::before,
+.portfolio-ask form::after {
+  content: "";
+  position: absolute;
+  inset-inline: 9px;
+  height: 4px;
+  pointer-events: none;
+  backdrop-filter: none;
+}
+.portfolio-ask form::before {
+  top: 0;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 3%, var(--glass-glint) 34%, transparent 74%) 1;
+}
+.portfolio-ask form::after {
+  bottom: 0;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent 28%, var(--glass-glint) 72%, transparent 97%) 1;
 }
 .portfolio-ask form:focus-within {
-  outline: 2px solid #416b5f;
-  outline-offset: 2px;
+  border-color: var(--glass-active-edge);
+}
+.portfolio-ask form:not([data-pointer-focus]):has(input:focus-visible) {
+  outline: 2px solid var(--glass-keyboard);
+  outline-offset: 3px;
 }
 .portfolio-ask input {
   flex: 1;
@@ -110,8 +144,15 @@
   font: inherit;
   font-size: 1rem;
   text-shadow: var(--glass-text-shadow);
+  -webkit-text-stroke: 1.8px var(--glass-text-edge);
+  paint-order: stroke fill;
 }
-.portfolio-ask input::placeholder { color: var(--glass-muted); opacity: 1; }
+.portfolio-ask input::placeholder {
+  color: var(--glass-muted);
+  font-weight: 350;
+  letter-spacing: -.012em;
+  opacity: 1;
+}
 .portfolio-ask button[type="submit"] {
   display: grid;
   position: relative;
@@ -135,7 +176,7 @@
 .portfolio-ask button[type="submit"] svg { position: relative; }
 .portfolio-ask button[type="submit"]:hover::before,
 .portfolio-ask button[type="submit"]:focus-visible::before { background: var(--glass-button-active); }
-.portfolio-ask button[type="submit"]:focus-visible { outline: 2px solid #416b5f; outline-offset: 1px; }
+.portfolio-ask button[type="submit"]:focus-visible { outline: 2px solid var(--glass-keyboard); outline-offset: 1px; }
 .portfolio-ask button:disabled { opacity: .55; cursor: wait; }
 .portfolio-ask .ask-answer {
   margin-top: .65rem;

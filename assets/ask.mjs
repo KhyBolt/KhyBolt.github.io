@@ -73,6 +73,12 @@ async function submitQuestion() {
   }
 }
 
+// Text inputs can match :focus-visible after a pointer click.
+form.addEventListener("pointerdown", event => {
+  if (event.target === input) form.dataset.pointerFocus = "";
+});
+input.addEventListener("blur", () => delete form.dataset.pointerFocus);
+
 form.addEventListener("submit", event => {
   event.preventDefault();
   void submitQuestion();
