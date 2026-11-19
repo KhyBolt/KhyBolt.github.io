@@ -60,10 +60,10 @@
   content: "";
   pointer-events: none;
   background: var(--focal-tint);
-  -webkit-backdrop-filter: blur(4px) saturate(.94);
-  backdrop-filter: blur(4px) saturate(.94);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 54%, #000b 9%, #0008 32%, #0003 62%, #0001 80%, transparent 100%);
-  mask-image: radial-gradient(ellipse at 50% 54%, #000b 9%, #0008 32%, #0003 62%, #0001 80%, transparent 100%);
+  -webkit-backdrop-filter: blur(5.25px) saturate(.94);
+  backdrop-filter: blur(5.25px) saturate(.94);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 54%, #000c 9%, #000a 32%, #0003 62%, #0001 80%, transparent 100%);
+  mask-image: radial-gradient(ellipse at 50% 54%, #000c 9%, #000a 32%, #0003 62%, #0001 80%, transparent 100%);
 }
 .portfolio-focal > * { position: relative; }
 .portfolio-focal .masthead { margin: 0; gap: .6rem; text-align: center; }
@@ -84,9 +84,14 @@
 }
 
 .portfolio-ask {
+  --glass-fill: rgba(17, 17, 16, .12);
+  --glass-filter: blur(.85px) saturate(1);
   width: min(100%, 64vw, 56rem);
   min-width: 0;
   font-family: "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+}
+[data-reference-theme="light"] .portfolio-ask {
+  --glass-fill: rgba(249, 248, 241, .16);
 }
 .portfolio-ask [hidden] { display: none; }
 .portfolio-ask form {
