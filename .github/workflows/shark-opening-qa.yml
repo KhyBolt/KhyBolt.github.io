@@ -1,20 +1,23 @@
-name: Capture the portfolio glass reference
+name: Glass bar preview QA
 on:
   push:
-    branches: ['qa/shark-opening-292fe30']
+    branches: [qa/shark-opening-292fe30]
 permissions:
   contents: read
 jobs:
-  reference:
+  preview:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - name: Install browser tooling for preview checks
+      - name: Install browser
         run: |
           npm install --no-save --no-package-lock playwright@1.58.2
           npx playwright install --with-deps chromium
-      - name: Seek the public original clip to its midpoint
-        run: node qa-glass-reference.mjs
+      - name: Compare current and preview glass
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/baseline" d781abc728e4320124e55b5bf553394c3e730732
+          node qa-glass-comparison.mjs

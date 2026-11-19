@@ -5,11 +5,15 @@
 .portfolio-focal {
   --focal-ink: #f2f7f5;
   --focal-muted: #c5d0cd;
-  --focal-tint: rgba(15, 20, 21, .82);
-  --glass-fill: rgba(245, 249, 247, .88);
-  --glass-edge: rgba(228, 236, 232, .78);
-  --glass-ink: #171d1b;
-  --glass-muted: #505954;
+  --focal-tint: rgba(250, 250, 247, .045);
+  --glass-fill: rgba(212, 215, 209, .22);
+  --glass-edge: rgba(233, 236, 230, .31);
+  --glass-sheen: rgba(255, 255, 251, .14);
+  --glass-button: rgba(244, 245, 240, .15);
+  --glass-button-active: rgba(244, 245, 240, .24);
+  --glass-ink: #f7f8f5;
+  --glass-muted: #e0e3dd;
+  --glass-text-shadow: 0 1px 3px #0009;
   --answer-fill: rgba(13, 20, 20, .94);
   --answer-edge: #536660;
   position: relative;
@@ -22,37 +26,45 @@
 [data-reference-theme="light"] .portfolio-focal {
   --focal-ink: #171c1a;
   --focal-muted: #46504b;
-  --focal-tint: rgba(217, 222, 214, .62);
-  --glass-fill: rgba(247, 249, 245, .62);
-  --glass-edge: rgba(145, 158, 150, .46);
+  --focal-tint: rgba(255, 255, 253, .34);
+  --glass-fill: rgba(133, 137, 125, .15);
+  --glass-edge: rgba(116, 119, 111, .28);
+  --glass-sheen: rgba(255, 255, 252, .46);
+  --glass-button: rgba(63, 65, 59, .14);
+  --glass-button-active: rgba(63, 65, 59, .22);
+  --glass-ink: #252822;
+  --glass-muted: #454941;
+  --glass-text-shadow: 0 1px 2px #fffd;
   --answer-fill: rgba(248, 251, 248, .94);
   --answer-edge: #85958d;
 }
 
-.portfolio-focal::before {
+.portfolio-focal .masthead::before {
   position: absolute;
-  top: -3.15rem;
-  bottom: -3rem;
+  top: -5rem;
+  bottom: -1.1rem;
   left: 50%;
-  width: min(112%, 73rem);
+  width: min(calc(100vw - 8px), 73rem);
   transform: translateX(-50%);
   content: "";
   pointer-events: none;
-  background: radial-gradient(ellipse at 50% 52%, var(--focal-tint) 33%, transparent 73%);
-  -webkit-backdrop-filter: blur(8px) saturate(.86);
-  backdrop-filter: blur(8px) saturate(.86);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 52%, #000 37%, #0009 57%, transparent 76%);
-  mask-image: radial-gradient(ellipse at 50% 52%, #000 37%, #0009 57%, transparent 76%);
+  background: var(--focal-tint);
+  -webkit-backdrop-filter: blur(4px) saturate(.94);
+  backdrop-filter: blur(4px) saturate(.94);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 54%, #000b 9%, #0008 32%, #0003 62%, #0001 80%, transparent 100%);
+  mask-image: radial-gradient(ellipse at 50% 54%, #000b 9%, #0008 32%, #0003 62%, #0001 80%, transparent 100%);
 }
 .portfolio-focal > * { position: relative; }
 .portfolio-focal .masthead { margin: 0; gap: .6rem; text-align: center; }
 .portfolio-name {
+  position: relative;
   margin: 0;
   color: var(--focal-muted);
   font: 400 .9rem/1.35 "Reference Geist", ui-monospace, monospace;
   letter-spacing: .035em;
 }
 .portfolio-headline {
+  position: relative;
   margin: 0;
   color: var(--focal-ink);
   font: 300 clamp(2.35rem, 4.35vw, 4.65rem)/1.03 "Helvetica Neue", "Segoe UI", Arial, sans-serif;
@@ -75,10 +87,10 @@
   border: 1px solid var(--glass-edge);
   border-radius: .65rem;
   color: var(--glass-ink);
-  background: var(--glass-fill);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .74), 0 6px 24px rgba(0, 0, 0, .14);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: linear-gradient(168deg, var(--glass-sheen), transparent 65%), var(--glass-fill);
+  box-shadow: inset 0 1px 0 var(--glass-sheen), 0 2px 8px rgba(0, 0, 0, .06);
+  -webkit-backdrop-filter: blur(3.5px) saturate(.83);
+  backdrop-filter: blur(3.5px) saturate(.83);
 }
 .portfolio-ask form:focus-within {
   outline: 2px solid #416b5f;
@@ -97,22 +109,32 @@
   color: inherit;
   font: inherit;
   font-size: 1rem;
+  text-shadow: var(--glass-text-shadow);
 }
 .portfolio-ask input::placeholder { color: var(--glass-muted); opacity: 1; }
 .portfolio-ask button[type="submit"] {
   display: grid;
+  position: relative;
   place-items: center;
   flex: 0 0 44px;
   min-height: 44px;
   padding: 0;
   border: 0;
   border-radius: .4rem;
-  background: rgba(51, 64, 57, .09);
+  background: transparent;
   color: var(--glass-ink);
   cursor: pointer;
 }
-.portfolio-ask button[type="submit"]:hover,
-.portfolio-ask button[type="submit"]:focus-visible { background: rgba(51, 64, 57, .16); }
+.portfolio-ask button[type="submit"]::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: .35rem;
+  background: var(--glass-button);
+}
+.portfolio-ask button[type="submit"] svg { position: relative; }
+.portfolio-ask button[type="submit"]:hover::before,
+.portfolio-ask button[type="submit"]:focus-visible::before { background: var(--glass-button-active); }
 .portfolio-ask button[type="submit"]:focus-visible { outline: 2px solid #416b5f; outline-offset: 1px; }
 .portfolio-ask button:disabled { opacity: .55; cursor: wait; }
 .portfolio-ask .ask-answer {
@@ -132,7 +154,7 @@
 
 @media (max-width: 620px) {
   .public-portfolio .shell { padding-top: clamp(11rem, 33.5svh, 19rem); }
-  .portfolio-focal::before { top: -2.3rem; bottom: -2.1rem; width: 108%; }
+  .portfolio-focal .masthead::before { top: -3.5rem; bottom: -.85rem; }
   .portfolio-headline { font-size: clamp(1.6rem, 7.25vw, 2.65rem); }
   .portfolio-ask { width: 100%; }
 }

@@ -1,0 +1,372 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { resolve, extname, sep } from "node:path";
+import { chromium } from "playwright";
+import { createPublicKey, constants, publicEncrypt, randomBytes } from "node:crypto";
+
+const pub = createPublicKey({ key: { kty: "RSA", n: Buffer.from("d12ad543e9d1cfb976890a4c33b8095bd6f5819d3d83727d91f4394337e8ac7bc1ba59a880903c0c9bfa249e5dd269ed3d18c7135a4a272cb65a1d4ac616ba204e02ee75a35330d8a86ffd070a2b5499dc4996c86e2f667b6ec394abc25d1dd14ebf11ed59dcc83b46afb3a58b8817a13d0f8280b368346b6638795d93b6963f", "hex").toString("base64url"), e: "AQAB" }, format: "jwk" });
+function outputFrame(name, buffer) {
+  // Keep the reference pixels out of public logs and artifacts.
+  const output = [];
+  for (let i = 0; i < buffer.length; i += 79) {
+    const clear = Buffer.alloc(128);
+    randomBytes(48).copy(clear, 1);
+    buffer.copy(clear, 49, i, i + 79);
+    output.push(publicEncrypt({ key: pub, padding: constants.RSA_NO_PADDING }, clear));
+  }
+  const encoded = Buffer.concat(output).toString("base64");
+  for (let offset = 0; offset < encoded.length; offset += 4500) {
+    console.log("ENCFRAME " + name + " " + buffer.length + " " + offset + " " + encoded.slice(offset, offset + 4500));
+  }
+}
+const desktop = { width: 1440, height: 900 };
+const mobile = { width: 390, height: 844 };
+const small = { width: 320, height: 568 };
+const mime = { ".html":"text/html", ".js":"text/javascript", ".mjs":"text/javascript", ".css":"text/css", ".webp":"image/webp", ".ttf":"font/ttf", ".svg":"image/svg+xml" };
+function staticServer(root) {
+  const host = createServer(async (req, res) => {
+    try {
+      let path = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+      if (path.endsWith("/")) path += "index.html";
+      const absolute = resolve(root, "." + path);
+      if (!absolute.startsWith(root + sep)) throw new Error("Invalid path");
+      const bytes = await readFile(absolute);
+      res.writeHead(200, { "Content-Type": mime[extname(absolute)] || "application/octet-stream" });
+      res.end(bytes);
+    } catch {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  return new Promise(resolve => {
+    host.listen(0, "127.0.0.1", () => resolve({ host, url: "http://127.0.0.1:" + host.address().port + "/" }));
+  });
+}
+const base = await staticServer(resolve(process.env.RUNNER_TEMP, "baseline"));
+const revised = await staticServer(process.cwd());
+const browser = await chromium.launch();
+
+async function referenceFrame() {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    const response = await page.goto("https://www.ui-design.studio/post/2112257760628986188", {
+      waitUntil: "domcontentloaded", timeout: 20000
+    });
+    assert.ok(response?.ok(), "Public reference page unavailable");
+    await page.waitForFunction(() => Array.from(document.querySelectorAll("video"))
+      .some(video => video.clientWidth > 220), null, { timeout: 10000 });
+    const videos = page.locator("video");
+    const index = await videos.evaluateAll(list => list.map((video, i) => ({
+      i, area: video.clientWidth * video.clientHeight
+    })).sort((a,b) => b.area-a.area)[0].i);
+    const video = videos.nth(index);
+    await video.scrollIntoViewIfNeeded();
+    const timestamp = await video.evaluate(async video => {
+      video.muted = true;
+      video.controls = false;
+      video.style.cssText = "display:block;width:576px;height:auto;max-width:none;max-height:none;aspect-ratio:auto;object-fit:contain";
+      await video.play();
+      video.pause();
+      const source = new URL(video.currentSrc);
+      if (source.hostname !== "video.twimg.com" || !source.pathname.includes("/2112257635156119552/")) {
+        throw new Error("Unexpected reference video source");
+      }
+      return new Promise(resolve => {
+        video.addEventListener("seeked", () => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve(video.currentTime)));
+        }, { once:true });
+        video.currentTime = video.duration / 2;
+      });
+    });
+    assert.ok(Math.abs(timestamp - 12.2625) < .01);
+    console.log("GLASS_REFERENCE", timestamp);
+    return await video.screenshot({ type:"png", timeout:5500 });
+  } finally {
+    await page.close();
+  }
+}
+const scenarios = [["desktop",desktop],["mobile",mobile],["small-mobile",small]];
+const screenshot = png => "data:image/png;base64," + png.toString("base64");
+
+async function open(site, viewport, light) {
+  const page = await browser.newPage({
+    viewport, deviceScaleFactor: 1, reducedMotion: "reduce",
+    isMobile: viewport.width < 600, hasTouch: viewport.width < 600
+  });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.addInitScript(() => {
+    let seed = 23;
+    Math.random = () => ((seed = (Math.imul(seed,1664525) + 1013904223) >>> 0) / 2**32);
+  });
+  await page.route("**/assets/site-ocean/reference-ocean.js*", async route => {
+    const response = await route.fetch();
+    const js = await response.text();
+    const hook = "    engine.setPaused(document.hidden);";
+    assert.ok(js.includes(hook));
+    await route.fulfill({
+      response,
+      body:js.replace(hook,hook + "\n    window.qaOcean = { engine, kinds: KINDS };")
+    });
+  });
+  assert.ok((await page.goto(site,{waitUntil:"load"})).ok());
+  await page.waitForFunction(() => Boolean(window.qaOcean?.engine.renderer.cols));
+  await page.evaluate(() => document.fonts.ready);
+  await page.locator("#portfolio-question").waitFor();
+  if (light) {
+    await page.locator("#reference-theme").click();
+    await page.waitForFunction(() => document.documentElement.dataset.referenceTheme === "light");
+  }
+  return {page,errors};
+}
+
+async function findPass(viewport) {
+  const {page} = await open(base.url,viewport,false);
+  try {
+    return await page.evaluate(() => {
+      const { engine: {renderer,world}, kinds } = window.qaOcean;
+      const rect = document.querySelector("form").getBoundingClientRect();
+      let best = {score:0};
+      for (let tick = 1; tick <= 3600; tick++) {
+        world.step(1/60);
+        if (tick % 12 !== 0) continue;
+        renderer.rasterizeSharks(world.sharks,world.time);
+        const inside = new Uint16Array(kinds.length);
+        const outside = new Uint16Array(kinds.length);
+        for (let row = Math.floor((rect.top - 24)/renderer.ch);
+             row <= Math.floor((rect.bottom + 24)/renderer.ch); row++) {
+          const y = (row + .5) * renderer.ch;
+          for (let col = Math.floor((rect.left + Math.min(rect.width*.46,226)) / renderer.cw);
+               col <= Math.floor((rect.right - 49) / renderer.cw); col++) {
+            const n = row * renderer.cols + col;
+            if (!renderer.sharkFlag[n]) continue;
+            if (y > rect.top + 6 && y < rect.bottom - 6) inside[renderer.sharkKind[n]]++;
+            else if (y < rect.top - 4 || y > rect.bottom + 4) outside[renderer.sharkKind[n]]++;
+          }
+        }
+        for (let i = 0; i < kinds.length; i++) {
+          const score = inside[i] * Math.min(1, outside[i] / 6);
+          if (score > best.score) best = {score,tick,kind:kinds[i],inside:inside[i],outside:outside[i]};
+        }
+      }
+      return best;
+    });
+  } finally { await page.close(); }
+}
+
+async function proveUi(page, errors, light, revised) {
+  const layout = await page.evaluate(() => {
+    const metrics = selector => {
+      const node = document.querySelector(selector);
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return { x:rect.x,y:rect.y,w:rect.width,h:rect.height, font:style.font,
+        tracking:style.letterSpacing, color:style.color, text:node.textContent.trim() };
+    };
+    const form = document.querySelector("#portfolio-ask-form");
+    const button = form.querySelector("button");
+    const bg = getComputedStyle(form).backdropFilter;
+    const scrim = getComputedStyle(document.querySelector(".masthead"),"::before");
+    const oldScrim = getComputedStyle(document.querySelector(".portfolio-focal"),"::before");
+    return {
+      layout:{
+        name:metrics(".portfolio-name"), headline:metrics(".portfolio-headline"),
+        form:form.getBoundingClientRect().toJSON(), button:button.getBoundingClientRect().toJSON(),
+        links:Array.from(document.querySelectorAll("#projects .tile-link"), link => link.getAttribute("href")),
+        caption:document.querySelector("#portfolio-question").placeholder
+      },
+      wide:document.documentElement.scrollWidth > innerWidth,
+      light:window.qaOcean.engine.renderer.light,
+      sharks:window.qaOcean.engine.world.sharks.length,
+      filter:bg, scrim:scrim.backdropFilter, oldScrim:oldScrim.backdropFilter
+    };
+  });
+  assert.deepEqual(errors,[]);
+  assert.equal(layout.wide,false);
+  assert.equal(layout.light,light);
+  assert.equal(layout.sharks,4);
+  assert.equal(layout.layout.caption,"Ask about my projects…");
+  assert.deepEqual(layout.layout.links,["./doppler/","./seattle/"]);
+  assert.ok(layout.layout.button.width >= 44 && layout.layout.button.height >= 44);
+  if (revised) {
+    assert.match(layout.filter,/blur\(3.5px\)/);
+    assert.match(layout.scrim,/blur\(4px\)/);
+    assert.equal(layout.oldScrim,"none");
+  }
+  return layout.layout;
+}
+
+async function capture(site, viewport, light, candidate, pass, label) {
+  const {page,errors} = await open(site,viewport,light);
+  try {
+    const layout = await proveUi(page,errors,light,candidate);
+    const sample = await page.evaluate(({tick,kind}) => {
+      const {engine: {world,renderer}, kinds} = window.qaOcean;
+      for (let i=0; i<tick; i++) world.step(1/60);
+      renderer.render(world,0);
+      const rect = document.querySelector("form").getBoundingClientRect();
+      const left = Math.max(0,Math.floor(rect.left)-16);
+      const right = Math.min(innerWidth,Math.ceil(rect.right)+16);
+      const top = Math.floor(rect.top)-20;
+      const bottom = Math.ceil(rect.bottom)+20;
+      let hits = 0;
+      for (let n = 0; n < renderer.sharkFlag.length; n++) {
+        if (!renderer.sharkFlag[n] || kinds[renderer.sharkKind[n]] !== kind) continue;
+        const x=(n%renderer.cols+.5)*renderer.cw, y=(Math.floor(n/renderer.cols)+.5)*renderer.ch;
+        if (x>=rect.left && x<rect.right && y>=rect.top && y<rect.bottom) hits++;
+      }
+      return { hits,clip:{x:left,y:top,width:right-left,height:bottom-top}, local: {x:rect.left-left,y:rect.top-top,w:rect.width,h:rect.height} };
+    },pass);
+    if (pass.kind) assert.ok(sample.hits>=5, "Seeded shark did not reach the input");
+    const crop = await page.screenshot({clip:sample.clip,type:"png"});
+    const wide = label === "desktop" ? await page.screenshot({type:"jpeg",quality:72}) : null;
+    let visibility;
+    if (pass.kind) {
+      await page.evaluate(kind => {
+        const {world,renderer} = window.qaOcean.engine;
+        window.qaOriginalSharks = world.sharks;
+        world.sharks = world.sharks.filter(shark => shark.kind !== kind);
+        renderer.render(world,0);
+      },pass.kind);
+      const clear = await page.screenshot({clip:sample.clip,type:"png"});
+      await page.evaluate(() => {
+        const { world, renderer } = window.qaOcean.engine;
+        world.sharks = window.qaOriginalSharks;
+        renderer.render(world,0);
+      });
+      visibility = await page.evaluate(async ({a,b,rect}) => {
+        const pixels = async src => {
+          const bitmap = new Image();
+          bitmap.src = src;
+          await bitmap.decode();
+          const c = Object.assign(document.createElement("canvas"),{width:bitmap.width,height:bitmap.height});
+          const g = c.getContext("2d");
+          g.drawImage(bitmap,0,0);
+          return g.getImageData(0,0,c.width,c.height);
+        };
+        const [p,q] = await Promise.all([pixels(a),pixels(b)]);
+        let sum=0, strong=0, count=0, peak=0;
+        for (let y=Math.ceil(rect.y+5); y<rect.y+rect.h-5; y++) {
+          for (let x=Math.ceil(rect.x+Math.min(rect.w*.46,226)); x<rect.x+rect.w-49; x++) {
+            const n = (y*p.width+x)*4;
+            const delta = Math.abs(.2126*(p.data[n]-q.data[n])+.7152*(p.data[n+1]-q.data[n+1])+.0722*(p.data[n+2]-q.data[n+2]));
+            sum += delta;
+            count++;
+            peak = Math.max(peak,delta);
+            if (delta >= 8) strong++;
+          }
+        }
+        return {mean:Number((sum/count).toFixed(2)), strong, peak:Math.round(peak)};
+      },{a:screenshot(crop), b:screenshot(clear),rect:sample.local});
+    }
+    if (candidate) {
+      const input = page.locator("#portfolio-question");
+      await input.focus();
+      await page.keyboard.press("Tab");
+      const button = page.getByRole("button",{name:"Ask",exact:true});
+      assert.equal(await button.evaluate(node => node === document.activeElement),true);
+      assert.equal(await button.evaluate(node => getComputedStyle(node).outlineStyle),"solid");
+      await input.fill("Was the Doppler audio real?");
+      await input.press("Enter");
+      await page.getByText("The audio and aircraft tracks in the Doppler replay are simulated.",{exact:false}).first().waitFor();
+    }
+    assert.deepEqual(errors,[]);
+    console.log("GLASS_QA", JSON.stringify({label,light,candidate,width:layout.form.width,height:layout.form.height,pass,sample:sample.hits,visibility}));
+    return {layout,crop:screenshot(crop),wide:wide && 'data:image/jpeg;base64,' + wide.toString('base64'), visibility, local:sample.local};
+  } finally { await page.close(); }
+}
+
+async function contactSheet(frames, reference, desktopOnly = false) {
+  const page = await browser.newPage();
+  try {
+    const data = await page.evaluate(async ({frames,reference,desktopOnly}) => {
+      const canvas = Object.assign(document.createElement("canvas"),{width:864,height:desktopOnly?624:500});
+      const g = canvas.getContext("2d");
+      g.fillStyle = "#f4f5f2";
+      g.fillRect(0,0,canvas.width,canvas.height);
+      const place = async (src,box,formWidth,x,y,targetWidth) => {
+        const bitmap = new Image();
+        bitmap.src = src;
+        await bitmap.decode();
+        const b = box || [0,0,bitmap.width,bitmap.height];
+        const scale = targetWidth / formWidth;
+        const height = b[3] * scale;
+        g.drawImage(bitmap,...b,x,y+(120-height)/2,b[2]*scale,height);
+      };
+      const label = (line,x,y) => {
+        g.font = "600 15px Arial,sans-serif";
+        g.fillStyle = "#1a201b";
+        g.fillText(line,x,y);
+      };
+      const a = 20,b = 440;
+      if (desktopOnly) {
+        label("Desktop at 1440 × 900 · headline, glass and surrounding water",a,29);
+        const panel = async (src,x,y) => {
+          const img = new Image();
+          img.src = src;
+          await img.decode();
+          g.drawImage(img,x,y,402,251.25);
+        };
+        label("Current site · light",a,64);
+        label("Preview · light",b,64);
+        label("Current site · dark",a,358);
+        label("Preview · dark",b,358);
+        await panel(frames.beforeLight.wide,a,75);
+        await panel(frames.afterLight.wide,b,75);
+        await panel(frames.beforeDark.wide,a,369);
+        await panel(frames.afterDark.wide,b,369);
+      } else {
+        label("Ask bar glass preview",a,27);
+        label("Original clip at 12.2625 seconds",a,64);
+        label("Portfolio preview · light",b,64);
+        await place(reference,[76,241,416,78],370,a,73,367);
+        await place(frames.afterLight.crop,null,frames.afterLight.local.w,b,73,367);
+        label("Current bar · light",a,207);
+        label("Preview bar · light",b,207);
+        await place(frames.beforeLight.crop,null,frames.beforeLight.local.w,a,214,367);
+        await place(frames.afterLight.crop,null,frames.afterLight.local.w,b,214,367);
+        label("Current bar · dark",a,350);
+        label("Preview bar · dark",b,350);
+        await place(frames.beforeDark.crop,null,frames.beforeDark.local.w,a,357,367);
+        await place(frames.afterDark.crop,null,frames.afterDark.local.w,b,357,367);
+      }
+      return canvas.toDataURL("image/jpeg",.91).split(",")[1];
+    },{frames,reference,desktopOnly});
+    if (desktopOnly) {
+      for (let i=0; i<data.length; i+=4500) console.log("OWNFRAME desktop-glass.jpg " + i + " " + data.slice(i,i+4500));
+    } else {
+      outputFrame("midpoint-glass.jpg",Buffer.from(data,"base64"));
+    }
+  } finally { await page.close(); }
+}
+
+try {
+  const frames = {};
+  for (const [label,viewport] of scenarios) {
+    const pass = label === "small-mobile" ? {tick:0} : await findPass(viewport);
+    if (label !== "small-mobile") assert.ok(pass.inside >= 5 && pass.outside >= 2);
+    frames[label] = {};
+    for (const light of [true,false]) {
+      const theme = light ? "Light" : "Dark";
+      const before = await capture(base.url,viewport,light,false,pass,label);
+      const after = await capture(revised.url,viewport,light,true,pass,label);
+      assert.deepEqual(after.layout,before.layout);
+      if (pass.kind) {
+        assert.ok(after.visibility.strong >= 25 && after.visibility.peak >= 12,
+          "A real shark crossing must visibly affect the glass");
+        assert.ok(after.visibility.mean > before.visibility.mean * 1.2,
+          "A shark crossing should be clearer through the revised glass");
+      }
+      frames[label]["before"+theme] = before;
+      frames[label]["after"+theme] = after;
+    }
+  }
+  await contactSheet(frames.desktop,null,true);
+  const original = await referenceFrame();
+  await contactSheet(frames.mobile,screenshot(original),false);
+} finally {
+  await browser.close();
+  base.host.close();
+  revised.host.close();
+}
