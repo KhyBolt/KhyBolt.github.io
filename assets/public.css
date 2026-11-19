@@ -181,6 +181,7 @@
 .corner-pond-description { display: block; margin-top: .15rem; }
 .corner-pond-link .tile-title { min-height: 53px; padding-block: .3rem; }
 .corner-pond-link small { font-size: .75rem; font-weight: 400; }
+.corner-pond-link .tile-frame img { object-fit: contain; }
 .corner-pond-gallery {
   width: min(54rem, calc(100% - 2rem));
   max-height: calc(100% - 2rem);
