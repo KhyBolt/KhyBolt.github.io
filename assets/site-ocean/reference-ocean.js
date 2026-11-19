@@ -177,6 +177,10 @@ const SHARK_PASSAGES = [
     { axis: 1, sign: -1, heading: -Math.PI / 2, x: 0, y: -1 },
     { axis: 1, sign: 1, heading: Math.PI / 2, x: 0, y: 1 }
 ];
+const SHARK_ENTRY_BLEND = 2.4;
+function shoreEntryHeading(side, phase, elapsed) {
+    return SHARK_PASSAGES[side].heading + Math.PI + 0.22 * Math.sin(phase + elapsed * 0.65);
+}
 const sharkBaseLength = (minSide)=>clamp(minSide * 0.50, 195, 485);
 const DEFAULT_SHARKS = [
     {
@@ -290,9 +294,13 @@ class World {
         const length = sharkBaseLength(Math.min(this.width, this.height)) * size;
         const nodes = new Float32Array(SHARK_NODES * 2);
         const seg = length / (SHARK_NODES - 1);
-        for(let n = 0; n < SHARK_NODES; n++){
-            nodes[n * 2] = x - Math.cos(heading) * seg * n;
-            nodes[n * 2 + 1] = y - Math.sin(heading) * seg * n;
+        nodes[0] = x;
+        nodes[1] = y;
+        // Keep the head aligned and seed a gentle bend toward the tail.
+        for(let n = 1; n < SHARK_NODES; n++){
+            const angle = heading - orbitDir * 0.35 * (n - 1) / (SHARK_NODES - 2);
+            nodes[n * 2] = nodes[(n - 1) * 2] - Math.cos(angle) * seg;
+            nodes[n * 2 + 1] = nodes[(n - 1) * 2 + 1] - Math.sin(angle) * seg;
         }
         return {
             id: ++this.nextSharkId,
@@ -451,7 +459,7 @@ class World {
             if (this.sharks.some(other=>other.kind === spec.kind)) continue;
             // Bring the successor in from the opposite edge, on a staggered lane.
             const arrival = side ^ 1;
-            const { axis, sign, heading } = SHARK_PASSAGES[arrival];
+            const { axis, sign } = SHARK_PASSAGES[arrival];
             const minSide = Math.min(this.width, this.height);
             const L = sharkBaseLength(minSide) * spec.size;
             const padding = this.sharkShoreMargin(L) + 6;
@@ -459,8 +467,10 @@ class World {
             const x = axis === 0 ? (sign < 0 ? -padding : this.width + padding) : this.width * lane;
             const y = axis === 1 ? (sign < 0 ? -padding : this.height + padding) : this.height * lane;
             const orbitDir = this.nextSharkId % 2 === 0 ? 1 : -1;
-            const sh = this.makeShark(spec, x, y, heading + Math.PI, orbitDir, minSide * rand(0.28, 0.4));
-            sh.passage = { side: arrival, entering: true, start: this.time };
+            const phase = TAU * hash3(this.nextSharkId, arrival, 17);
+            const heading = shoreEntryHeading(arrival, phase, 0);
+            const sh = this.makeShark(spec, x, y, heading, orbitDir, minSide * rand(0.28, 0.4));
+            sh.passage = { side: arrival, entering: true, start: this.time, phase, blendStart: null };
             return sh;
         }
         return null;
@@ -475,9 +485,13 @@ class World {
             if (route.entering) {
                 const { axis, sign } = SHARK_PASSAGES[route.side];
                 const inset = Math.min(sh.length * 0.45, Math.min(this.width, this.height) * 0.28);
-                if (this.shoreDistance(sh.nodes[axis], axis, sign) <= -inset) {
-                    sh.passage = null;
+                // Reach the inset under inward guidance before easing into free swimming.
+                if (route.blendStart === null && this.shoreDistance(sh.nodes[axis], axis, sign) <= -inset) {
+                    route.blendStart = time;
                     sh.eligibleAt = time + 23;
+                }
+                if (route.blendStart !== null && time - route.blendStart >= SHARK_ENTRY_BLEND) {
+                    sh.passage = null;
                 }
             } else if (this.sharkOutside(sh, route.side)) {
                 const next = this.nextSharkAtShore(route.side);
@@ -764,22 +778,31 @@ class World {
                 dx += toX / d * w;
                 dy += toY / d * w;
             }
-            if (sh.passage) {
-                const { x, y } = SHARK_PASSAGES[sh.passage.side];
-                const leaving = !sh.passage.entering;
-                const blend = leaving ? smoothstep(0, 1.5, time - sh.passage.start) : 1;
-                dx = (1 - blend) * dx + blend * (leaving ? x : -x);
-                dy = (1 - blend) * dy + blend * (leaving ? y : -y);
+            const route = sh.passage;
+            if (route && !route.entering) {
+                const { x, y } = SHARK_PASSAGES[route.side];
+                const blend = smoothstep(0, 1.5, time - route.start);
+                dx = (1 - blend) * dx + blend * x;
+                dy = (1 - blend) * dy + blend * y;
                 hunting = false;
             }
             const desired = Math.atan2(dy, dx);
-            const agility = Math.min(hunting ? 1.7 + closing : 0.8, sh.speed / (L * 0.22));
-            const maxTurn = agility * dt;
-            const turned = clamp(angleDiff(sh.heading, desired), -maxTurn, maxTurn);
+            const turnLimit = sh.speed / (L * 0.22);
+            const maxTurn = Math.min(hunting ? 1.7 + closing : 0.8, turnLimit) * dt;
+            let turned = clamp(angleDiff(sh.heading, desired), -maxTurn, maxTurn);
+            const cruise = 30 + L * 0.04;
+            let targetSpeed = hunting ? cruise * (1.45 + closing * 1.5) : cruise;
+            if (route?.entering) {
+                const heading = shoreEntryHeading(route.side, route.phase, time - route.start);
+                const guideLimit = Math.min(0.8, turnLimit) * dt;
+                const guideTurn = clamp(angleDiff(sh.heading, heading), -guideLimit, guideLimit);
+                const blend = route.blendStart === null ? 0 : smoothstep(0, SHARK_ENTRY_BLEND, time - route.blendStart);
+                // Blend bounded turns so opposing headings cannot snap the desired turn.
+                turned = guideTurn + (turned - guideTurn) * blend;
+                targetSpeed = cruise + (targetSpeed - cruise) * blend;
+            }
             sh.heading += turned;
             sh.turn += (turned / dt - sh.turn) * Math.min(1, dt * 3);
-            const cruise = 30 + L * 0.04;
-            const targetSpeed = hunting ? cruise * (1.45 + closing * 1.5) : cruise;
             sh.speed += (targetSpeed - sh.speed) * Math.min(1, dt * 1.1);
             sh.phase += dt * (2 + sh.speed / 24);
             nodes[0] += Math.cos(sh.heading) * sh.speed * dt;
