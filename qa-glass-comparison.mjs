@@ -232,7 +232,7 @@ async function capture(site, viewport, light, candidate, pass, label) {
       await input.fill("What is Seattle Pothole Worklist?");
       await button.click();
       await page.locator("#portfolio-answer-text")
-        .filter({hasText:"Seattle Pothole Worklist is an independent browser demo"}).waitFor();
+        .filter({hasText:"The browser demo has four views"}).waitFor();
       const toggle = page.getByRole("switch");
       for (const active of [!light, light]) {
         await toggle.click();
