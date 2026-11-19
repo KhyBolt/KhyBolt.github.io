@@ -170,6 +170,7 @@ function pickSpecies() {
     return 0;
 }
 const SHARK_NODES = 20;
+const sharkBaseLength = (minSide)=>clamp(minSide * 0.44, 170, 430);
 const DEFAULT_SHARKS = [
     {
         kind: "classic",
@@ -226,26 +227,56 @@ class World {
         this.fishCount = fishCount;
     }
     resize(width, height, cellW, cellH) {
-        const first = this.width === 0;
+        const previousWidth = this.width;
+        const previousHeight = this.height;
         this.width = width;
         this.height = height;
         this.sepX = SPECIES.map((sp)=>sp.spacing[0] * cellW);
         this.sepY = SPECIES.map((sp)=>sp.spacing[1] * cellH);
         this.perception = Math.max(cellH * 3, cellW * 5.5);
         this.foreignSep = cellW * 3;
-        if (first || this.fish.length === 0) {
+        if (previousWidth === 0 || this.fish.length === 0) {
             this.seed();
             return;
         }
+        if (width === previousWidth && height === previousHeight) return;
+        const xScale = width / previousWidth;
+        const yScale = height / previousHeight;
+        const minSide = Math.min(width, height);
+        const orbitScale = minSide / Math.min(previousWidth, previousHeight);
+        const baseLength = sharkBaseLength(minSide);
+        // Keep each shark's swim state and current pose while updating its
+        // viewport-relative position and the same body scale used on load.
+        for (const sh of this.sharks){
+            const { nodes } = sh;
+            const headX = nodes[0], headY = nodes[1];
+            const x = headX * xScale, y = headY * yScale;
+            const length = baseLength * sh.depth;
+            const bodyScale = length / sh.length;
+            for(let i = 2; i < nodes.length; i += 2){
+                nodes[i] = x + (nodes[i] - headX) * bodyScale;
+                nodes[i + 1] = y + (nodes[i + 1] - headY) * bodyScale;
+            }
+            nodes[0] = x;
+            nodes[1] = y;
+            sh.length = length;
+            sh.orbitRadius *= orbitScale;
+        }
         for (const f of this.fish){
-            f.x = clamp(f.x, 0, width);
-            f.y = clamp(f.y, 0, height);
+            f.x = clamp(f.x * xScale, 0, width);
+            f.y = clamp(f.y * yScale, 0, height);
+        }
+        this.pointer.x *= xScale;
+        this.pointer.y *= yScale;
+        for (const e of this.events){
+            e.x *= xScale;
+            e.y *= yScale;
         }
     }
     seed() {
         const { width: W, height: H } = this;
         const minSide = Math.min(W, H);
-        const baseLength = clamp(minSide * 0.44, 170, 430);
+        const baseLength = sharkBaseLength(minSide);
         const sharkCount = this.sharkSpecs.length;
         this.sharks = [];
         for(let i = 0; i < sharkCount; i++){
@@ -816,6 +847,11 @@ const REFERENCE_INK = {
             "#362b80",
             "#433489"
         ]
+    },
+    zebra: {
+        tint: [1.07, 1.01, .86],
+        dark: ["#d7c5a5", "#bdab8b", "#ece2cf"],
+        light: ["#654d34", "#6c5c45", "#534b3d"]
     },
     nurse: {
         tint: [
@@ -1710,7 +1746,8 @@ class AsciiRenderer {
             const key = sharkKey[i];
             const shade = sharkShade[i];
             const dim = 0.7 + 0.3 * sharkDepth[i];
-            const ink = REFERENCE_INK[KINDS[sharkKind[i]]] || REFERENCE_INK.classic;
+            const kind = KINDS[sharkKind[i]];
+            const ink = REFERENCE_INK[kind === "greathammer" ? "hammerhead" : kind] || REFERENCE_INK.classic;
             const stacked = this.stackedInk[i] === 1;
             const accents = stacked ? this.light ? STACKED_LIGHT_ACCENTS : STACKED_ACCENTS : this.light ? ink.light : ink.dark;
             const [r, g, b] = stacked ? SHAPES[KINDS[sharkKind[i]]].tint : ink.tint;
@@ -1861,6 +1898,7 @@ class OceanEngine {
     acc = 0;
     visible = true;
     reducedMotion;
+    resolution;
     resizeObserver;
     intersectionObserver;
     disposed = false;
@@ -1868,6 +1906,7 @@ class OceanEngine {
     lastWidth = 0;
     lastHeight = 0;
     lastDpr = 0;
+    lastDevicePixelRatio = 0;
     constructor(canvas, sharks, light = false){
         this.canvas = canvas;
         this.world = new World(sharks);
@@ -1875,8 +1914,9 @@ class OceanEngine {
         this.renderer.setTheme(light);
         this.renderer.setFontFamily(getComputedStyle(canvas).fontFamily);
         this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-        this.resizeObserver = new ResizeObserver(()=>this.resize());
+        this.resizeObserver = new ResizeObserver(this.onResize);
         this.resizeObserver.observe(canvas);
+        window.addEventListener("resize", this.onResize, { passive: true });
         this.intersectionObserver = new IntersectionObserver(([entry])=>{
             this.visible = entry.isIntersecting;
             this.schedule();
@@ -1901,6 +1941,8 @@ class OceanEngine {
         this.disposed = true;
         cancelAnimationFrame(this.raf);
         this.resizeObserver.disconnect();
+        this.resolution?.removeEventListener("change", this.onResize);
+        window.removeEventListener("resize", this.onResize);
         this.intersectionObserver.disconnect();
         this.reducedMotion.removeEventListener("change", this.onMotionPreference);
         window.removeEventListener("pointermove", this.onPointerMove);
@@ -1908,10 +1950,21 @@ class OceanEngine {
         document.documentElement.removeEventListener("pointerleave", this.onPointerLeave);
         window.removeEventListener("blur", this.onPointerLeave);
     }
+    onResize = ()=>this.resize();
     resize() {
+        if (this.disposed) return;
+        const rawDpr = window.devicePixelRatio || 1;
+        if (rawDpr !== this.lastDevicePixelRatio) {
+            // Browser zoom / moving between displays can update DPR without
+            // a change to the canvas's observed CSS box. Track the new ratio.
+            this.resolution?.removeEventListener("change", this.onResize);
+            this.lastDevicePixelRatio = rawDpr;
+            this.resolution = window.matchMedia(`(resolution: ${rawDpr}dppx)`);
+            this.resolution.addEventListener("change", this.onResize);
+        }
         const rect = this.canvas.getBoundingClientRect();
         if (rect.width < 1 || rect.height < 1) return;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const dpr = Math.min(rawDpr, 2);
         if (this.lastWidth === rect.width && this.lastHeight === rect.height && this.lastDpr === dpr) return;
         this.lastWidth = rect.width;
         this.lastHeight = rect.height;
@@ -1991,9 +2044,11 @@ const canvas = document.getElementById("ocean-canvas");
 if (canvas && typeof ResizeObserver !== "undefined" && typeof IntersectionObserver !== "undefined") {
   try {
     const animals = [
-      {kind:"classic",size:1}, {kind:"classic",size:.78,stackedInk:true},
-      {kind:"mako",size:.76}, {kind:"hammerhead",size:.67},
-      {kind:"nurse",size:.59,stackedInk:true}, {kind:"tiger",size:.62},
+      // Place the two biggest sharks on opposite sides at startup.
+      {kind:"classic",size:1}, {kind:"zebra",size:.61},
+      {kind:"mako",size:.76}, {kind:"nurse",size:.59,stackedInk:true},
+      {kind:"greathammer",size:.95}, {kind:"thresher",size:.73,stackedInk:true},
+      {kind:"tiger",size:.62}, {kind:"hammerhead",size:.67},
     ];
     const engine = new OceanEngine(canvas, animals, document.documentElement.dataset.referenceTheme === "light");
     engine.setPaused(document.hidden);

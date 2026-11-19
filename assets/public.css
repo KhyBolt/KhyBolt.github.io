@@ -1,5 +1,10 @@
-/* Center the single public project without changing the underlying scene. */
+/* Keep the two selected projects centered without changing the ASCII scene. */
 .public-portfolio .project-grid {
-  grid-template-columns: minmax(0, 25rem);
+  grid-template-columns: repeat(2, minmax(0, 25rem));
   justify-content: center;
+}
+@media (max-width: 620px) {
+  .public-portfolio .project-grid {
+    grid-template-columns: minmax(0, 25rem);
+  }
 }
