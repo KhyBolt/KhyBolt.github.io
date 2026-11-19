@@ -170,6 +170,13 @@ function pickSpecies() {
     return 0;
 }
 const SHARK_NODES = 20;
+const SHARK_LIMIT = 4;
+const SHARK_PASSAGES = [
+    { axis: 0, sign: -1, heading: Math.PI, x: -1, y: 0 },
+    { axis: 0, sign: 1, heading: 0, x: 1, y: 0 },
+    { axis: 1, sign: -1, heading: -Math.PI / 2, x: 0, y: -1 },
+    { axis: 1, sign: 1, heading: Math.PI / 2, x: 0, y: 1 }
+];
 const sharkBaseLength = (minSide)=>clamp(minSide * 0.44, 170, 430);
 const DEFAULT_SHARKS = [
     {
@@ -218,6 +225,10 @@ class World {
     bucketCount = new Uint16Array(0);
     bucketNext = new Int32Array(0);
     lastSpawn = 0;
+    nextSharkSpec = 0;
+    nextSharkId = 0;
+    nextSharkExit = 0;
+    shoreGridPadding = 0;
     tmp = {
         x: 0,
         y: 0
@@ -235,6 +246,7 @@ class World {
         this.sepY = SPECIES.map((sp)=>sp.spacing[1] * cellH);
         this.perception = Math.max(cellH * 3, cellW * 5.5);
         this.foreignSep = cellW * 3;
+        this.shoreGridPadding = Math.max(cellW, cellH) + 4;
         if (previousWidth === 0 || this.fish.length === 0) {
             this.seed();
             return;
@@ -273,45 +285,54 @@ class World {
             e.y *= yScale;
         }
     }
+    makeShark(spec, x, y, heading, orbitDir, orbitRadius) {
+        const { kind, size, stackedInk } = spec;
+        const length = sharkBaseLength(Math.min(this.width, this.height)) * size;
+        const nodes = new Float32Array(SHARK_NODES * 2);
+        const seg = length / (SHARK_NODES - 1);
+        for(let n = 0; n < SHARK_NODES; n++){
+            nodes[n * 2] = x - Math.cos(heading) * seg * n;
+            nodes[n * 2 + 1] = y - Math.sin(heading) * seg * n;
+        }
+        return {
+            id: ++this.nextSharkId,
+            kind,
+            stackedInk,
+            length,
+            nodes,
+            heading,
+            speed: 30,
+            phase: rand(0, TAU),
+            turn: 0,
+            hunger: rand(0.25, 0.75),
+            wander: 0,
+            orbitDir,
+            orbitRadius,
+            target: null,
+            retargetAt: 0,
+            depth: size,
+            passage: null,
+            eligibleAt: this.time
+        };
+    }
     seed() {
         const { width: W, height: H } = this;
         const minSide = Math.min(W, H);
-        const baseLength = sharkBaseLength(minSide);
-        const sharkCount = this.sharkSpecs.length;
+        const sharkCount = Math.min(this.sharkSpecs.length, SHARK_LIMIT);
+        this.nextSharkSpec = sharkCount;
+        this.nextSharkId = 0;
+        this.nextSharkExit = this.time + 5;
         this.sharks = [];
         for(let i = 0; i < sharkCount; i++){
-            const { kind, size, stackedInk } = this.sharkSpecs[i];
-            const length = baseLength * size;
             const orbitRadius = minSide * rand(0.28, 0.4);
             const a = i / sharkCount * TAU + rand(-0.4, 0.4);
             const orbitDir = i % 2 === 0 ? 1 : -1;
             const x = W / 2 + Math.cos(a) * orbitRadius * (W / minSide) * 0.9;
             const y = H / 2 + Math.sin(a) * orbitRadius;
             const heading = a + orbitDir * Math.PI / 2;
-            const nodes = new Float32Array(SHARK_NODES * 2);
-            const seg = length / (SHARK_NODES - 1);
-            for(let n = 0; n < SHARK_NODES; n++){
-                nodes[n * 2] = x - Math.cos(heading) * seg * n;
-                nodes[n * 2 + 1] = y - Math.sin(heading) * seg * n;
-            }
-            this.sharks.push({
-                id: i + 1,
-                kind,
-                stackedInk,
-                length,
-                nodes,
-                heading,
-                speed: 30,
-                phase: rand(0, TAU),
-                turn: 0,
-                hunger: rand(0.25, 0.75),
-                wander: 0,
-                orbitDir,
-                orbitRadius,
-                target: null,
-                retargetAt: 0,
-                depth: size
-            });
+            const shark = this.makeShark(this.sharkSpecs[i], x, y, heading, orbitDir, orbitRadius);
+            shark.eligibleAt = this.time + 2 * i;
+            this.sharks.push(shark);
         }
         this.sharks.sort((a, b)=>a.length - b.length);
         const total = this.fishCount ?? clamp(Math.round(W * H / 4400), 85, 340);
@@ -367,7 +388,93 @@ class World {
         this.rebuildHash();
         this.stepFish(dt);
         this.stepSharks(dt);
+        if (this.sharkSpecs.length > SHARK_LIMIT) this.rotateSharks();
         this.respawn();
+    }
+    shoreDistance(node, axis, sign) {
+        return sign < 0 ? -node : node - (axis === 0 ? this.width : this.height);
+    }
+    sharkShoreMargin(length) {
+        // Outer renderer bounds: 0.36L raster reach + up to 0.07L of
+        // articulated spine, then enough room for a partially visible cell.
+        return 0.43 * length + this.shoreGridPadding;
+    }
+    sharkOutside(sh, side) {
+        const { axis, sign } = SHARK_PASSAGES[side];
+        const pad = this.sharkShoreMargin(sh.length);
+        for(let p = axis; p < sh.nodes.length; p += 2){
+            if (this.shoreDistance(sh.nodes[p], axis, sign) <= pad) return false;
+        }
+        return true;
+    }
+    bestSharkExit(sh) {
+        let chosen = 0, best = Infinity;
+        for(let i = 0; i < SHARK_PASSAGES.length; i++){
+            const { axis, sign, heading } = SHARK_PASSAGES[i];
+            const distance = -this.shoreDistance(sh.nodes[axis], axis, sign);
+            const turn = Math.abs(angleDiff(sh.heading, heading));
+            const score = distance + turn * Math.max(42, sh.length * 0.23);
+            if (score < best) {
+                best = score;
+                chosen = i;
+            }
+        }
+        return chosen;
+    }
+    nextSharkAtShore(side) {
+        const count = this.sharkSpecs.length;
+        for(let i = 0; i < count; i++){
+            const spec = this.sharkSpecs[this.nextSharkSpec % count];
+            this.nextSharkSpec++;
+            if (this.sharks.some(other=>other.kind === spec.kind)) continue;
+            // Bring the successor in from the opposite edge, on a staggered lane.
+            const arrival = side ^ 1;
+            const { axis, sign, heading } = SHARK_PASSAGES[arrival];
+            const minSide = Math.min(this.width, this.height);
+            const L = sharkBaseLength(minSide) * spec.size;
+            const padding = this.sharkShoreMargin(L) + 6;
+            const lane = 0.22 + 0.56 * hash3(this.nextSharkId, arrival, 13);
+            const x = axis === 0 ? (sign < 0 ? -padding : this.width + padding) : this.width * lane;
+            const y = axis === 1 ? (sign < 0 ? -padding : this.height + padding) : this.height * lane;
+            const orbitDir = this.nextSharkId % 2 === 0 ? 1 : -1;
+            const sh = this.makeShark(spec, x, y, heading + Math.PI, orbitDir, minSide * rand(0.28, 0.4));
+            sh.passage = { side: arrival, entering: true, start: this.time };
+            return sh;
+        }
+        return null;
+    }
+    rotateSharks() {
+        const { sharks, time } = this;
+        let changed = false;
+        for(let i = 0; i < sharks.length; i++){
+            const sh = sharks[i];
+            const route = sh.passage;
+            if (!route) continue;
+            if (route.entering) {
+                const { axis, sign } = SHARK_PASSAGES[route.side];
+                const inset = Math.min(sh.length * 0.45, Math.min(this.width, this.height) * 0.28);
+                if (this.shoreDistance(sh.nodes[axis], axis, sign) <= -inset) {
+                    sh.passage = null;
+                    sh.eligibleAt = time + 23;
+                }
+            } else if (this.sharkOutside(sh, route.side)) {
+                const next = this.nextSharkAtShore(route.side);
+                if (next) {
+                    sharks[i] = next;
+                    changed = true;
+                }
+            }
+        }
+        if (changed) sharks.sort((a, b)=>a.length - b.length);
+        if (time < this.nextSharkExit || sharks.filter(sh=>sh.passage).length >= 2) return;
+        let ready = null;
+        for(const sh of sharks){
+            if (!sh.passage && sh.eligibleAt <= time && (!ready || sh.eligibleAt < ready.eligibleAt)) ready = sh;
+        }
+        if (ready) {
+            ready.passage = { side: this.bestSharkExit(ready), entering: false, start: time };
+            this.nextSharkExit = time + 4;
+        }
     }
     rebuildHash() {
         const size = this.perception;
@@ -634,6 +741,14 @@ class World {
                 const d = Math.hypot(toX, toY) || 1;
                 dx += toX / d * w;
                 dy += toY / d * w;
+            }
+            if (sh.passage) {
+                const { x, y } = SHARK_PASSAGES[sh.passage.side];
+                const leaving = !sh.passage.entering;
+                const blend = leaving ? smoothstep(0, 1.5, time - sh.passage.start) : 1;
+                dx = (1 - blend) * dx + blend * (leaving ? x : -x);
+                dy = (1 - blend) * dy + blend * (leaving ? y : -y);
+                hunting = false;
             }
             const desired = Math.atan2(dy, dx);
             const agility = Math.min(hunting ? 1.7 + closing : 0.8, sh.speed / (L * 0.22));
@@ -2044,11 +2159,11 @@ const canvas = document.getElementById("ocean-canvas");
 if (canvas && typeof ResizeObserver !== "undefined" && typeof IntersectionObserver !== "undefined") {
   try {
     const animals = [
-      // Place the two biggest sharks on opposite sides at startup.
-      {kind:"classic",size:1}, {kind:"zebra",size:.61},
-      {kind:"mako",size:.76}, {kind:"nurse",size:.59,stackedInk:true},
-      {kind:"greathammer",size:.95}, {kind:"thresher",size:.73,stackedInk:true},
-      {kind:"tiger",size:.62}, {kind:"hammerhead",size:.67},
+      // Start with four; the rest swim in as the earlier sharks clear an edge.
+      {kind:"classic",size:1.04}, {kind:"mako",size:.79},
+      {kind:"greathammer",size:.99}, {kind:"tiger",size:.64},
+      {kind:"thresher",size:.75,stackedInk:true}, {kind:"hammerhead",size:.69},
+      {kind:"zebra",size:.63}, {kind:"nurse",size:.61,stackedInk:true},
     ];
     const engine = new OceanEngine(canvas, animals, document.documentElement.dataset.referenceTheme === "light");
     engine.setPaused(document.hidden);
