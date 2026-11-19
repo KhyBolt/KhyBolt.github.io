@@ -51,14 +51,28 @@ function showAnswer(id) {
 }
 
 const remote = endpoint ? createClientTransport(endpoint) : null;
+function clearLengthError() {
+  if (!status.classList.replace("ask-answer", "screen-reader")) return;
+  status.textContent = "";
+  input.removeAttribute("aria-invalid");
+  input.removeAttribute("aria-describedby");
+}
+
 async function submitQuestion() {
   if (busy) return;
   const question = input.value.trim();
   if (!question) return;
-  if (question.length > MAX_QUESTION || new TextEncoder().encode(question).length > MAX_QUESTION_BYTES) {
-    status.textContent = "Please shorten your question.";
+  const overCharacterLimit = question.length > MAX_QUESTION;
+  if (overCharacterLimit || new TextEncoder().encode(question).length > MAX_QUESTION_BYTES) {
+    status.classList.replace("screen-reader", "ask-answer");
+    status.textContent = overCharacterLimit
+      ? `Shorten your question to ${MAX_QUESTION} characters or fewer and try again.`
+      : `Shorten your question further and try again. Some characters use more than one byte, and the limit is ${MAX_QUESTION_BYTES} bytes.`;
+    input.setAttribute("aria-invalid", "true");
+    input.setAttribute("aria-describedby", status.id);
     return;
   }
+  clearLengthError();
   busy = true;
   submit.disabled = true;
   submit.setAttribute("aria-busy", "true");
@@ -78,6 +92,7 @@ form.addEventListener("pointerdown", event => {
   if (event.target === input) form.dataset.pointerFocus = "";
 });
 input.addEventListener("blur", () => delete form.dataset.pointerFocus);
+input.addEventListener("input", clearLengthError);
 
 form.addEventListener("submit", event => {
   event.preventDefault();
