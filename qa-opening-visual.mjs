@@ -116,6 +116,51 @@ async function check(site, version, label, viewport, light = false) {
     };
   });
   console.log("QAMETRIC " + JSON.stringify({version,label,tone,...metrics}));
+  if (version === "after" && label === "small-mobile" && !light) {
+    const best = await page.evaluate(() => {
+      const {engine,kinds} = window.qaOcean;
+      const r = engine.renderer;
+      const world = engine.world, head = world.sharks.find(sh => sh.kind === "greathammer");
+      const forehead = kinds.indexOf("greathammer");
+      const cover = Array.from(document.querySelectorAll(".tile-frame, #portfolio-ask-form, .portfolio-label"), el => el.getBoundingClientRect());
+      const titleCanvas = document.getElementById("title-art"), title = titleCanvas.getBoundingClientRect();
+      const titlePixels = titleCanvas.getContext("2d").getImageData(0,0,titleCanvas.width,titleCanvas.height).data;
+      const visible = (x,y) => {
+        if (cover.some(box => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom)) return false;
+        if (x < title.left || x >= title.right || y < title.top || y >= title.bottom) return true;
+        const px = Math.floor((x-title.left)/title.width*titleCanvas.width);
+        const py = Math.floor((y-title.top)/title.height*titleCanvas.height);
+        return titlePixels[(py*titleCanvas.width+px)*4+3] <= 100;
+      };
+      const options = [];
+      for (const heading of [0,.2,.36,.52,.64,.76,.88,1.04]) {
+        const s=Math.sin(heading),c=Math.cos(heading),L=head.length;
+        for (const hx of [220,235,250,265]) for (const hy of [119,126,133,140,147]) {
+          const pose = { ...head, heading, nodes:Float32Array.from(head.nodes,(value,i)=>{
+            const distance=L*Math.floor(i/2)/(head.nodes.length/2-1);
+            return i%2 ? hy-distance*s : hx-distance*c;
+          }) };
+          r.rasterizeSharks([pose],0);
+          let a=0,b=0,seen=0,face=0;
+          for(let i=0;i<r.sharkFlag.length;i++) {
+            if(!r.sharkFlag[i]||r.sharkKind[i]!==forehead)continue;
+            const x=(i%r.cols+.5)*r.cw,y=(Math.floor(i/r.cols)+.5)*r.ch;
+            const dx=x-hx,dy=y-hy,along=-(dx*c+dy*s),across=dy*c-dx*s;
+            const isFace=along<L*.122 && Math.abs(across)>L*.085;
+            if(isFace)face++;
+            if(!visible(x,y))continue;
+            seen++;
+            if(isFace){ if(across<0)a++;else b++; }
+          }
+          const tailY=hy-L*s;
+          if((a+b)/face>=.72&&Math.min(a,b)>=8&&tailY>-8)options.push({heading,hx,hy,a,b,face,seen,tailY:Math.round(tailY),score:Math.min(a,b)*3+(a+b)+seen*.48});
+        }
+      }
+      r.render(world,0);
+      return options.sort((a,b)=>b.score-a.score).slice(0,12);
+    });
+    console.log("QAPOSES " + JSON.stringify(best));
+  }
   const question = page.locator("#portfolio-question");
   await question.fill("Was the Doppler audio real?");
   await question.press("Enter");

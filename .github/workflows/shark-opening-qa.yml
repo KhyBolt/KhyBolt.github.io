@@ -20,6 +20,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Render the portfolio and verify opening frames
         run: node qa-opening-visual.mjs
+      - name: Inspect the public reference player
+        if: always()
+        run: node qa-public-reference.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
