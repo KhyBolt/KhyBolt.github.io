@@ -9,6 +9,7 @@ const transcript = document.getElementById("portfolio-transcript");
 const log = transcript.querySelector(".ask-log");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
+const statusMessage = status.querySelector(".ask-status-text");
 let topic = "";
 let busy = false;
 let following = true;
@@ -148,9 +149,19 @@ transcript.addEventListener("scroll", () => {
   if (!ask.hidden && !ask.inert) following = nearEnd();
 }, { passive: true });
 
-function clearLengthError() {
-  if (!status.classList.replace("ask-answer", "screen-reader")) return;
-  status.textContent = "";
+function showValidationError(message, style) {
+  status.classList.remove("screen-reader", "ask-answer", "ask-empty");
+  status.classList.add(style);
+  if (statusMessage.textContent !== message) statusMessage.textContent = message;
+  input.setAttribute("aria-invalid", "true");
+  input.setAttribute("aria-describedby", status.id);
+}
+
+function clearValidationError() {
+  if (status.classList.contains("screen-reader")) return;
+  status.classList.remove("ask-answer", "ask-empty");
+  status.classList.add("screen-reader");
+  statusMessage.textContent = "";
   input.removeAttribute("aria-invalid");
   input.removeAttribute("aria-describedby");
 }
@@ -158,18 +169,20 @@ function clearLengthError() {
 async function submitQuestion() {
   if (busy) return;
   const question = input.value.trim();
-  if (!question) return;
-  const overCharacterLimit = question.length > MAX_QUESTION;
-  if (overCharacterLimit || new TextEncoder().encode(question).length > MAX_QUESTION_BYTES) {
-    status.classList.replace("screen-reader", "ask-answer");
-    status.textContent = overCharacterLimit
-      ? `Shorten your question to ${MAX_QUESTION} characters or fewer and try again.`
-      : `Shorten your question further and try again. Some characters use more than one byte, and the limit is ${MAX_QUESTION_BYTES} bytes.`;
-    input.setAttribute("aria-invalid", "true");
-    input.setAttribute("aria-describedby", status.id);
+  if (!question) {
+    input.focus();
+    showValidationError("Enter a question to send.", "ask-empty");
     return;
   }
-  clearLengthError();
+  const overCharacterLimit = question.length > MAX_QUESTION;
+  if (overCharacterLimit || new TextEncoder().encode(question).length > MAX_QUESTION_BYTES) {
+    const message = overCharacterLimit
+      ? `Shorten your question to ${MAX_QUESTION} characters or fewer and try again.`
+      : `Shorten your question further and try again. Some characters use more than one byte, and the limit is ${MAX_QUESTION_BYTES} bytes.`;
+    showValidationError(message, "ask-answer");
+    return;
+  }
+  clearValidationError();
   busy = true;
   submit.disabled = true;
   submit.setAttribute("aria-busy", "true");
@@ -194,7 +207,7 @@ form.addEventListener("pointerdown", event => {
   if (event.target === input) form.dataset.pointerFocus = "";
 });
 input.addEventListener("blur", () => delete form.dataset.pointerFocus);
-input.addEventListener("input", clearLengthError);
+input.addEventListener("input", clearValidationError);
 
 form.addEventListener("submit", event => {
   event.preventDefault();
