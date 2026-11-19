@@ -1,5 +1,5 @@
 function moveViews(departing, arriving, direction) {
-  const groups = panel => panel.querySelectorAll(".masthead, .portfolio-ask form, .ask-answer:not([hidden]), .project-tile");
+  const groups = panel => panel.querySelectorAll(".masthead, .portfolio-ask form, .ask-answer:not([hidden]), .ask-transcript:not([hidden]), .project-tile");
   const drift = value => "translateX(" + direction * value + "px)";
   const animations = [];
   for (const group of groups(departing)) {
@@ -31,9 +31,11 @@ function moveViews(departing, arriving, direction) {
 
 const stage = document.querySelector(".portfolio-views");
 const panels = { ask: document.getElementById("ask"), projects: document.getElementById("projects") };
+const askTranscript = panels.ask.querySelector(".ask-transcript");
 const links = document.querySelectorAll(".portfolio-nav [data-portfolio-link]");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const scrollPositions = { ask: 0, projects: 0 };
+let transcriptPosition = 0;
 let active;
 let transition;
 
@@ -59,6 +61,7 @@ function activate(next, { animate = false, restoreScroll = false, focus = true }
   const moving = departing && animate && !reducedMotion.matches && typeof arriving.animate === "function";
   if (departing) {
     scrollPositions[active] = window.scrollY;
+    if (active === "ask" && !askTranscript.hidden) transcriptPosition = askTranscript.scrollTop;
     departing.inert = true;
     departing.hidden = !moving;
     if (moving) departing.classList.add("is-departing");
@@ -68,6 +71,7 @@ function activate(next, { animate = false, restoreScroll = false, focus = true }
   active = next;
   for (const link of links) link.hidden = route(link.hash) === next;
   window.scrollTo(0, restoreScroll ? scrollPositions[next] : 0);
+  if (next === "ask" && !askTranscript.hidden) askTranscript.scrollTop = transcriptPosition;
 
   if (moving) {
     const offset = departingTop - stage.getBoundingClientRect().top;

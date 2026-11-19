@@ -11,9 +11,9 @@
   <link rel="stylesheet" href="./assets/reference.css?v=3c0a95a69a355b7d">
   <script src="./assets/reference-theme.js?v=d18b26892c06b6e3"></script>
   <link rel="stylesheet" href="./assets/public.css?v=projects4">
-  <link rel="stylesheet" href="./assets/ask.css?v=glass7">
-  <script type="module" src="./assets/ask.mjs?v=lean5"></script>
-  <script type="module" src="./assets/views.mjs?v=projects1"></script>
+  <link rel="stylesheet" href="./assets/ask.css?v=conversation1">
+  <script type="module" src="./assets/ask.mjs?v=conversation1"></script>
+  <script type="module" src="./assets/views.mjs?v=conversation1"></script>
   <script src="./assets/home.js?v=focal2" defer></script>
   <script src="./assets/site-ocean/reference-ocean.js?v=shark-species-1" defer></script>
 </head>
@@ -36,22 +36,23 @@
               <h1 class="portfolio-headline" id="ask-heading" tabindex="-1">Ask about me</h1>
             </header>
             <section class="portfolio-ask" aria-label="Ask about Khy Bolt">
-              <form id="portfolio-ask-form" data-endpoint="" hidden>
-                <label class="screen-reader" for="portfolio-question">Ask about my background, work or projects</label>
-                <textarea id="portfolio-question" name="question" rows="1" enterkeyhint="send"
-                  autocomplete="off" placeholder="Ask about my background, work or projects"
-                  data-compact-placeholder="Background, work, projects" required></textarea>
-                <button type="submit" aria-label="Ask">
-                  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"
-                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                    <path d="M3.25 8h9.5m-4-4 4 4-4 4"/>
-                  </svg>
-                </button>
-              </form>
-              <p class="screen-reader ask-status" id="portfolio-ask-status" role="status" aria-live="polite"></p>
-              <div class="ask-answer" id="portfolio-answer" hidden>
-                <p id="portfolio-answer-text"></p>
-                <ul id="portfolio-answer-links" aria-label="Answer sources"></ul>
+              <div class="ask-transcript" id="portfolio-transcript" role="region" aria-label="Conversation" tabindex="0" hidden>
+                <ol class="ask-log" role="log" aria-label="Messages" aria-relevant="additions"></ol>
+              </div>
+              <div class="ask-composer">
+                <form id="portfolio-ask-form" data-endpoint="" hidden>
+                  <label class="screen-reader" for="portfolio-question">Ask about my background, work or projects</label>
+                  <textarea id="portfolio-question" name="question" rows="1" enterkeyhint="send"
+                    autocomplete="off" placeholder="Ask about my background, work or projects"
+                    data-compact-placeholder="Background, work, projects" required></textarea>
+                  <button type="submit" aria-label="Ask">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"
+                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                      <path d="M3.25 8h9.5m-4-4 4 4-4 4"/>
+                    </svg>
+                  </button>
+                </form>
+                <p class="screen-reader ask-status" id="portfolio-ask-status" role="status" aria-live="polite"></p>
               </div>
             </section>
           </div>

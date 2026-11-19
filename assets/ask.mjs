@@ -3,13 +3,15 @@ import { answers, MAX_QUESTION, MAX_QUESTION_BYTES, nextTopic, resolveAnswer } f
 const form = document.getElementById("portfolio-ask-form");
 const input = form.elements.question;
 const submit = form.querySelector("button[type=submit]");
-const card = document.getElementById("portfolio-answer");
-const answerText = document.getElementById("portfolio-answer-text");
-const links = document.getElementById("portfolio-answer-links");
+const ask = document.getElementById("ask");
+const masthead = ask.querySelector(".masthead");
+const transcript = document.getElementById("portfolio-transcript");
+const log = transcript.querySelector(".ask-log");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
-const endpoint = form.dataset.endpoint?.trim();
 let topic = "";
 let busy = false;
+let following = true;
 
 export function createClientTransport(url, fetcher = globalThis.fetch) {
   return async (question, prior) => {
@@ -32,25 +34,97 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
   };
 }
 
-function showAnswer(id) {
-  const answer = answers[id];
-  const ancestors = answer.links.map(({ label, url }) => {
-    const item = document.createElement("li");
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = label;
-    item.append(link);
-    return item;
-  });
-  answerText.textContent = answer.text;
-  links.replaceChildren(...ancestors);
-  card.hidden = false;
-  status.textContent = answer.text + (answer.links.length ? " Source links follow." : "");
+function nearEnd() {
+  return transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 72;
 }
 
-const remote = endpoint ? createClientTransport(endpoint) : null;
+function followEnd() {
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function updateViewport() {
+  const viewport = window.visualViewport;
+  const root = document.documentElement;
+  root.style.setProperty("--ask-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+  root.style.setProperty("--ask-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+}
+
+function startConversation() {
+  if (ask.hasAttribute("data-conversation")) return;
+  const moving = !reducedMotion.matches && typeof form.animate === "function";
+  const elements = [masthead, form];
+  const before = moving ? elements.map(node => node.getBoundingClientRect()) : [];
+  ask.setAttribute("data-conversation", "");
+  transcript.hidden = false;
+  updateViewport();
+  window.scrollTo(0, 0);
+  window.addEventListener("resize", updateViewport, { passive: true });
+  window.visualViewport?.addEventListener("resize", updateViewport, { passive: true });
+  window.visualViewport?.addEventListener("scroll", updateViewport, { passive: true });
+  if ("ResizeObserver" in window) {
+    const observer = new ResizeObserver(() => {
+      if (following && !ask.hidden && !ask.inert) followEnd();
+    });
+    observer.observe(transcript);
+  }
+
+  if (moving) {
+    const animations = elements.map((node, index) => {
+      const after = node.getBoundingClientRect();
+      const start = before[index];
+      const travel = `translate(${start.left - after.left}px, ${start.top - after.top}px)`;
+      return node.animate([{ transform: travel }, { transform: "none" }], {
+        duration: 340, easing: "cubic-bezier(.22,.75,.26,1)"
+      });
+    });
+    animations.push(transcript.animate([{ opacity: 0 }, { opacity: 1 }], {
+      delay: 75, duration: 200, fill: "backwards", easing: "ease-out"
+    }));
+    const applyMotionPreference = () => {
+      if (reducedMotion.matches) animations.forEach(animation => animation.cancel());
+    };
+    reducedMotion.addEventListener("change", applyMotionPreference);
+    Promise.allSettled(animations.map(animation => animation.finished)).then(() => {
+      reducedMotion.removeEventListener("change", applyMotionPreference);
+    });
+  }
+}
+
+function appendTurn(author, text, links = []) {
+  const follow = nearEnd();
+  const turn = document.createElement("li");
+  turn.className = author === "You" ? "ask-turn visitor" : "ask-turn assistant";
+  const speaker = document.createElement("span");
+  speaker.className = "screen-reader";
+  speaker.textContent = author + ": ";
+  const message = document.createElement("p");
+  message.textContent = text;
+  turn.append(speaker, message);
+  if (links.length) {
+    const proof = document.createElement("ul");
+    proof.className = "ask-proof";
+    proof.setAttribute("aria-label", "Answer sources");
+    for (const { label, url } of links) {
+      const item = document.createElement("li");
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.target = "_blank";
+      anchor.rel = "noopener";
+      anchor.textContent = label;
+      item.append(anchor);
+      proof.append(item);
+    }
+    turn.append(proof);
+  }
+  log.append(turn);
+  following = follow;
+  if (follow) followEnd();
+}
+
+transcript.addEventListener("scroll", () => {
+  if (!ask.hidden && !ask.inert) following = nearEnd();
+}, { passive: true });
+
 function clearLengthError() {
   if (!status.classList.replace("ask-answer", "screen-reader")) return;
   status.textContent = "";
@@ -77,9 +151,14 @@ async function submitQuestion() {
   submit.disabled = true;
   submit.setAttribute("aria-busy", "true");
   try {
-    const { id } = await resolveAnswer(question, topic, remote);
+    startConversation();
+    appendTurn("You", question);
+    input.value = "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const { id } = await resolveAnswer(question, topic);
     topic = nextTopic(id, topic, question);
-    showAnswer(id);
+    const answer = answers[id];
+    appendTurn("Portfolio assistant", answer.text, answer.links);
   } finally {
     submit.disabled = false;
     submit.removeAttribute("aria-busy");
