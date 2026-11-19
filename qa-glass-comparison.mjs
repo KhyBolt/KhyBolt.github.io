@@ -45,7 +45,7 @@ function staticServer(root) {
 }
 const base = await staticServer(resolve(process.env.RUNNER_TEMP, "baseline"));
 const revised = await staticServer(process.cwd());
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: process.env.QA_CHROME_CHANNEL || undefined });
 
 async function referenceFrame() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -343,6 +343,7 @@ async function contactSheet(frames, reference, desktopOnly = false) {
 
 try {
   const frames = {};
+  const findings = [];
   for (const [label,viewport] of scenarios) {
     const pass = label === "small-mobile" ? {tick:0} : await findPass(viewport);
     if (label !== "small-mobile") assert.ok(pass.inside >= 5 && pass.outside >= 2);
@@ -353,10 +354,10 @@ try {
       const after = await capture(revised.url,viewport,light,true,pass,label);
       assert.deepEqual(after.layout,before.layout);
       if (pass.kind) {
-        assert.ok(after.visibility.strong >= 25 && after.visibility.peak >= 12,
-          "A real shark crossing must visibly affect the glass");
-        assert.ok(after.visibility.mean > before.visibility.mean * 1.2,
-          "A shark crossing should be clearer through the revised glass");
+        if (after.visibility.strong < 25 || after.visibility.peak < 12 ||
+            after.visibility.mean <= before.visibility.mean * 1.2) {
+          findings.push({label,theme,before:before.visibility,after:after.visibility});
+        }
       }
       frames[label]["before"+theme] = before;
       frames[label]["after"+theme] = after;
@@ -365,6 +366,7 @@ try {
   await contactSheet(frames.desktop,null,true);
   const original = await referenceFrame();
   await contactSheet(frames.mobile,screenshot(original),false);
+  assert.deepEqual(findings, [], "Sharks must show through more clearly in every tested theme and viewport");
 } finally {
   await browser.close();
   base.host.close();

@@ -13,11 +13,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Install browser
+      - name: Use the runner's installed Chrome
         run: |
-          npm install --no-save --no-package-lock playwright@1.58.2
-          npx playwright install --with-deps chromium
+          google-chrome --version
+          npm install --registry=https://registry.npmjs.org --fetch-retries=1 --fetch-timeout=30000 --no-save --no-package-lock playwright@1.58.2
       - name: Compare current and preview glass
+        env:
+          QA_CHROME_CHANNEL: chrome
         run: |
           git worktree add --detach "$RUNNER_TEMP/baseline" d781abc728e4320124e55b5bf553394c3e730732
           node qa-glass-comparison.mjs
