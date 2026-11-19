@@ -7,7 +7,6 @@ const card = document.getElementById("portfolio-answer");
 const answerText = document.getElementById("portfolio-answer-text");
 const links = document.getElementById("portfolio-answer-links");
 const status = document.getElementById("portfolio-ask-status");
-const suggestions = document.getElementById("portfolio-ask-suggestions");
 const endpoint = form.dataset.endpoint?.trim();
 let topic = "";
 let busy = false;
@@ -62,14 +61,14 @@ async function submitQuestion() {
   }
   busy = true;
   submit.disabled = true;
-  submit.textContent = "Checking…";
+  submit.setAttribute("aria-busy", "true");
   try {
     const { id } = await resolveAnswer(question, topic, remote);
     topic = nextTopic(id, topic, question);
     showAnswer(id);
   } finally {
     submit.disabled = false;
-    submit.textContent = "Ask";
+    submit.removeAttribute("aria-busy");
     busy = false;
   }
 }
@@ -89,11 +88,4 @@ if (form.hasAttribute("data-sandbox-preview")) {
     void submitQuestion();
   });
 }
-suggestions.addEventListener("click", event => {
-  const button = event.target.closest("button[data-question]");
-  if (!button || busy) return;
-  input.value = button.dataset.question;
-  void submitQuestion();
-});
 form.hidden = false;
-suggestions.hidden = false;
