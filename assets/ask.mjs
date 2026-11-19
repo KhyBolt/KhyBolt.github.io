@@ -50,7 +50,7 @@ function updateViewport() {
 }
 
 function startConversation() {
-  if (ask.hasAttribute("data-conversation")) return;
+  if (ask.hasAttribute("data-conversation")) return false;
   const moving = !reducedMotion.matches && typeof form.animate === "function";
   const elements = [masthead, form];
   const before = moving ? elements.map(node => node.getBoundingClientRect()) : [];
@@ -88,12 +88,34 @@ function startConversation() {
       reducedMotion.removeEventListener("change", applyMotionPreference);
     });
   }
+  return true;
 }
 
-function appendTurn(author, text, links = []) {
+const arrivingTurns = new Set();
+reducedMotion.addEventListener("change", event => {
+  if (event.matches) arrivingTurns.forEach(animation => animation.cancel());
+});
+
+function animateTurn(turn, visitor, delay) {
+  if (reducedMotion.matches || typeof turn.animate !== "function") return;
+  const direction = visitor ? 1 : -1;
+  const animation = turn.animate([
+    { opacity: .26, transform: `translateX(${8 * direction}px) scale(.986)` },
+    { opacity: 1, transform: `translateX(${1 * direction}px) scale(.998)`, offset: .77 },
+    { opacity: 1, transform: "none" }
+  ], {
+    delay, duration: 208, easing: "cubic-bezier(.22,.72,.32,1)", fill: "backwards"
+  });
+  arrivingTurns.add(animation);
+  const release = () => arrivingTurns.delete(animation);
+  animation.finished.then(release, release);
+}
+
+function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   const follow = nearEnd();
   const turn = document.createElement("li");
-  turn.className = author === "You" ? "ask-turn visitor" : "ask-turn assistant";
+  const visitor = author === "You";
+  turn.className = visitor ? "ask-turn visitor" : "ask-turn assistant";
   const speaker = document.createElement("span");
   speaker.className = "screen-reader";
   speaker.textContent = author + ": ";
@@ -119,6 +141,7 @@ function appendTurn(author, text, links = []) {
   log.append(turn);
   following = follow;
   if (follow) followEnd();
+  animateTurn(turn, visitor, delay);
 }
 
 transcript.addEventListener("scroll", () => {
@@ -151,14 +174,14 @@ async function submitQuestion() {
   submit.disabled = true;
   submit.setAttribute("aria-busy", "true");
   try {
-    startConversation();
-    appendTurn("You", question);
+    const first = startConversation();
+    appendTurn("You", question, { delay: first ? 90 : 0 });
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     const { id } = await resolveAnswer(question, topic);
     topic = nextTopic(id, topic, question);
     const answer = answers[id];
-    appendTurn("Portfolio assistant", answer.text, answer.links);
+    appendTurn("Portfolio assistant", answer.text, { links: answer.links, delay: first ? 150 : 54 });
   } finally {
     submit.disabled = false;
     submit.removeAttribute("aria-busy");

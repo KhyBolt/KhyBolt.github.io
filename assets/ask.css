@@ -247,30 +247,31 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   min-block-size: 0;
   overflow-y: auto;
   overscroll-behavior-block: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--glass-active-edge) transparent;
-  scrollbar-gutter: stable both-edges;
-  padding-block: .65rem;
+  scrollbar-width: none;
+  padding: .65rem .5rem;
 }
+.ask-transcript::-webkit-scrollbar { display: none; }
 .ask-transcript:focus-visible {
-  outline: 1px solid var(--glass-keyboard);
-  outline-offset: -1px;
+  outline: 2px solid var(--glass-keyboard);
+  outline-offset: -2px;
   border-radius: .65rem;
 }
 .ask-log {
   display: grid;
-  gap: .65rem;
+  gap: .48rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .ask-turn {
   justify-self: start;
+  inline-size: fit-content;
   max-inline-size: min(86%, 59ch);
   min-inline-size: 0;
   padding: .62rem .82rem;
-  border-radius: .82rem;
-  border-end-start-radius: .36rem;
+  border-radius: .9rem;
+  border-end-start-radius: .43rem;
+  transform-origin: left 60%;
   background: var(--ask-reply-fill, rgb(13 19 18 / .58));
   box-shadow: inset 0 0 0 .5px var(--glass-bevel);
   -webkit-backdrop-filter: blur(5px) saturate(.97);
@@ -282,11 +283,13 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
 }
 .ask-turn.visitor {
   justify-self: end;
-  max-inline-size: min(86%, 51ch);
-  border-end-start-radius: .82rem;
-  border-end-end-radius: .36rem;
+  max-inline-size: min(86%, 48ch);
+  border-end-start-radius: .9rem;
+  border-end-end-radius: .43rem;
+  transform-origin: right 60%;
   background: var(--ask-visitor-fill, rgb(32 37 34 / .62));
 }
+.ask-turn.visitor:not(:first-child) { margin-block-start: .3rem; }
 [data-reference-theme="light"] .ask-turn {
   --ask-reply-fill: rgb(251 250 246 / .75);
   --ask-visitor-fill: rgb(226 233 229 / .70);
@@ -309,6 +312,17 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   text-underline-offset: .22em;
 }
 .ask-proof a:focus-visible { outline-color: var(--glass-keyboard); }
+@media (forced-colors: active) {
+  .ask-transcript { scrollbar-width: auto; }
+  .ask-transcript::-webkit-scrollbar { display: revert; }
+  .ask-transcript:focus-visible { outline-color: Highlight; }
+  .ask-turn, .ask-turn.visitor {
+    background: Canvas;
+    color: CanvasText;
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
+}
 @media (max-width: 760px) {
   #ask[data-conversation] .portfolio-focal {
     padding-block-start: calc(max(12px, env(safe-area-inset-top)) + 3rem);
