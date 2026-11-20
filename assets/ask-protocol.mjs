@@ -54,15 +54,36 @@ export function boundChatHistory(turns) {
   const fits = value => encoder.encode(JSON.stringify(value)).byteLength <= MAX_CHAT_HISTORY_BYTES;
   if (fits(recent)) return recent;
 
-  const [latest] = recent.slice(-1);
+  const latest = recent.at(-1);
   if (fits([latest])) return [latest];
 
+  const { question } = latest;
   const answer = [];
   for (const paragraph of latest.answer) {
-    if (!fits([{ question: latest.question, answer: [...answer, paragraph] }])) break;
-    answer.push(paragraph);
+    const fitsNext = text => fits([{ question, answer: [...answer, text] }]);
+    if (fitsNext(paragraph)) {
+      answer.push(paragraph);
+      continue;
+    }
+
+    const characters = Array.from(paragraph);
+    let low = 1;
+    let high = characters.length - 1;
+    let excerpt;
+    while (low <= high) {
+      const length = Math.floor((low + high) / 2);
+      const text = characters.slice(0, length).join("").trimEnd() + "…";
+      if (fitsNext(text)) {
+        excerpt = text;
+        low = length + 1;
+      } else {
+        high = length - 1;
+      }
+    }
+    if (excerpt && isChatParagraph(excerpt)) answer.push(excerpt);
+    break;
   }
-  return answer.length ? [{ question: latest.question, answer }] : [];
+  return answer.length ? [{ question, answer }] : [];
 }
 
 
