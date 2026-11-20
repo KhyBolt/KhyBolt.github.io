@@ -229,6 +229,13 @@
   paint-order: stroke fill;
   overflow-wrap: anywhere;
 }
+.ask-status.ask-pending {
+  margin: 0;
+  padding-inline: .5rem;
+  color: var(--glass-ink);
+  font-size: .875rem;
+  line-height: 1.35;
+}
 .ask-empty-icon { display: none; }
 .ask-empty .ask-empty-icon {
   display: grid;

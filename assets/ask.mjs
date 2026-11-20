@@ -1,4 +1,6 @@
-import { answers, MAX_QUESTION, MAX_QUESTION_BYTES, nextTopic, resolveAnswer } from "./portfolio.mjs";
+import { evidence, sources } from "./ask-claim-data.mjs?v=worker1";
+import { isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS } from "./ask-protocol.mjs";
+import { answers, isExcludedProfileQuestion, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES, nextTopic, resolveAnswer } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
 const input = form.elements.question;
@@ -11,29 +13,91 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
 const statusMessage = status.querySelector(".ask-status-text");
 let topic = "";
+let context = [];
 let busy = false;
 let following = true;
 
+// Set this to the exact reviewed Worker origin only when the route is approved.
+const approvedAskOrigin = "https://portfolio-ask.khybolt.workers.dev";
+
+function askEndpoint(value, current) {
+  if (!value) return null;
+  try {
+    const candidate = new URL(value, current.href);
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(current.hostname) &&
+      candidate.origin === current.origin;
+    const approved = current.origin === "https://khybolt.github.io" &&
+      candidate.protocol === "https:" && candidate.origin === approvedAskOrigin;
+    return (local || approved) && candidate.pathname === "/ask" &&
+      !candidate.search && !candidate.hash && !candidate.username && !candidate.password
+      ? candidate.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const endpoint = askEndpoint(form.dataset.endpoint, location);
+const remote = endpoint ? createClientTransport(endpoint) : null;
+let activeRequest;
+
+function profileReply(data) {
+  const { facts, links, partial } = data;
+  if (!Array.isArray(facts) || !facts.length || facts.length > MAX_ANSWER_FACTS ||
+      !facts.every(fact => isRecordId(fact?.id) && isBoundedText(fact.text, MAX_FACT_BYTES)) ||
+      new Set(facts.map(fact => fact.id)).size !== facts.length ||
+      !Array.isArray(links) || links.length > MAX_ANSWER_LINKS || !links.every(isAnswerLink) ||
+      typeof partial !== "boolean") return null;
+  return { status: "answer", facts, links, partial };
+}
+
 export function createClientTransport(url, fetcher = globalThis.fetch) {
-  return async (question, prior) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3_300);
+  return async (question, prior, signal, previous = []) => {
     try {
       const response = await fetcher(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, topic: prior }),
-        signal: controller.signal,
-        credentials: "omit"
+        body: JSON.stringify(previous.length ? { question, topic: prior, context: previous } : { question, topic: prior }),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(5600)]),
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "error",
       });
-      if (!response.ok) return null;
+      if (!response.ok || !response.headers.get("Content-Type")?.startsWith("application/json")) return null;
       const data = await response.json();
-      return typeof data.id === "string" ? data.id : null;
-    } finally {
-      clearTimeout(timer);
+      if (data?.status === "unknown") return { status: "unknown" };
+      if (data?.status !== "answer") return null;
+      if (Object.hasOwn(data, "facts")) return profileReply(data);
+      return typeof data.id === "string" && Object.hasOwn(evidence, data.id)
+        ? { status: "answer", id: data.id } : null;
+    } catch {
+      return null;
     }
   };
 }
+
+function cancelRequest() {
+  activeRequest?.abort();
+}
+
+new MutationObserver(() => {
+  if (ask.inert) cancelRequest();
+}).observe(ask, { attributes: true, attributeFilter: ["inert"] });
+window.addEventListener("pagehide", cancelRequest);
+
+function recordAnswer(id) {
+  const record = evidence[id];
+  return { text: record.text, links: record.sourceIds.map(sourceId => sources[sourceId]) };
+}
+
+const serviceFallback = {
+  text: "The live answer is unavailable. You can ask about a featured project or open Projects.",
+  links: [sources.projects],
+};
+const unsupported = {
+  text: "I don’t have that information in the reviewed portfolio.",
+  links: [],
+};
+const projectShortcut = /^(?:show (?:me )?the projects|what projects are featured)[?.!]*$/u;
 
 function nearEnd() {
   return transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 72;
@@ -158,12 +222,21 @@ function showValidationError(message, style) {
 }
 
 function clearValidationError() {
-  if (status.classList.contains("screen-reader")) return;
+  if (!input.hasAttribute("aria-invalid")) return;
   status.classList.remove("ask-answer", "ask-empty");
   status.classList.add("screen-reader");
   statusMessage.textContent = "";
   input.removeAttribute("aria-invalid");
   input.removeAttribute("aria-describedby");
+}
+
+function showPendingAnswer() {
+  status.classList.replace("screen-reader", "ask-pending");
+  statusMessage.textContent = "Waiting for an answer…";
+}
+
+function clearPendingAnswer() {
+  if (status.classList.replace("ask-pending", "screen-reader")) statusMessage.textContent = "";
 }
 
 async function submitQuestion() {
@@ -192,10 +265,36 @@ async function submitQuestion() {
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     const { id } = await resolveAnswer(question, topic);
-    topic = nextTopic(id, topic, question);
-    const answer = answers[id];
+    let answer = answers[id];
+    let selectedTopic = nextTopic(id, topic, question);
+    let selectedContext = [];
+    if (remote && !ask.inert && !isExcludedProfileQuestion(question) && !projectShortcut.test(normalizeQuestion(question))) {
+      activeRequest = new AbortController();
+      showPendingAnswer();
+      const result = await remote(question, topic, activeRequest.signal, context);
+      if (activeRequest.signal.aborted || ask.inert) return;
+      if (result?.status === "answer" && result.facts) {
+        const paragraphs = result.facts.map(fact => fact.text);
+        if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
+        answer = { text: paragraphs.join("\n\n"), links: result.links };
+        selectedContext = result.facts.map(fact => fact.id);
+        selectedTopic = "";
+      } else if (result?.status === "answer") {
+        answer = recordAnswer(result.id);
+        selectedTopic = evidence[result.id].topic;
+      } else if (result?.status === "unknown") {
+        answer = unsupported;
+        selectedTopic = "";
+      } else if (id === "not-known" || id === "clarify") {
+        answer = serviceFallback;
+      }
+    }
+    topic = selectedTopic;
+    context = selectedContext;
     appendTurn("Portfolio assistant", answer.text, { links: answer.links, delay: first ? 150 : 54 });
   } finally {
+    clearPendingAnswer();
+    activeRequest = undefined;
     submit.disabled = false;
     submit.removeAttribute("aria-busy");
     busy = false;
