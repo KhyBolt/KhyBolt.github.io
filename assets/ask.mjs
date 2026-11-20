@@ -1,6 +1,9 @@
-import { evidence, sources } from "./ask-claim-data.mjs?v=worker1";
-import { isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS } from "./ask-protocol.mjs";
-import { answers, isExcludedProfileQuestion, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES, nextTopic, resolveAnswer } from "./portfolio.mjs?v=worker3";
+import { sources } from "./ask-claim-data.mjs?v=worker1";
+import {
+  isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
+  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
+} from "./ask-protocol.mjs?v=work-history1";
+import { isExcludedProfileQuestion, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
 const input = form.elements.question;
@@ -12,7 +15,6 @@ const log = transcript.querySelector(".ask-log");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
 const statusMessage = status.querySelector(".ask-status-text");
-let topic = "";
 let context = [];
 let busy = false;
 let following = true;
@@ -40,14 +42,26 @@ const endpoint = askEndpoint(form.dataset.endpoint, location);
 const remote = endpoint ? createClientTransport(endpoint) : null;
 let activeRequest;
 
+function isAnswerFact(fact) {
+  return isRecordId(fact?.id) && isBoundedText(fact.text, MAX_FACT_BYTES);
+}
+
 function profileReply(data) {
-  const { facts, links, partial } = data;
+  const { facts, links, partial, sections } = data;
   if (!Array.isArray(facts) || !facts.length || facts.length > MAX_ANSWER_FACTS ||
-      !facts.every(fact => isRecordId(fact?.id) && isBoundedText(fact.text, MAX_FACT_BYTES)) ||
+      !facts.every(isAnswerFact) ||
       new Set(facts.map(fact => fact.id)).size !== facts.length ||
       !Array.isArray(links) || links.length > MAX_ANSWER_LINKS || !links.every(isAnswerLink) ||
       typeof partial !== "boolean") return null;
-  return { status: "answer", facts, links, partial };
+  if (sections !== undefined) {
+    if (!Array.isArray(sections) || !sections.length || sections.length > MAX_ANSWER_SECTIONS ||
+        !sections.every(parts => Array.isArray(parts) && parts.length > 0 &&
+          parts.length <= MAX_SECTION_FACTS && parts.every(isAnswerFact))) return null;
+    const parts = sections.flat();
+    if (parts.length > MAX_SUMMARY_FACTS || new Set(parts.map(part => part.id)).size !== parts.length ||
+        !facts.every(fact => parts.some(part => part.id === fact.id && part.text === fact.text))) return null;
+  }
+  return { status: "answer", facts, links, partial, sections };
 }
 
 export function createClientTransport(url, fetcher = globalThis.fetch) {
@@ -57,7 +71,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(previous.length ? { question, topic: prior, context: previous } : { question, topic: prior }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(5600)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(7500)]),
         credentials: "omit",
         cache: "no-store",
         redirect: "error",
@@ -66,9 +80,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
       const data = await response.json();
       if (data?.status === "unknown") return { status: "unknown" };
       if (data?.status !== "answer") return null;
-      if (Object.hasOwn(data, "facts")) return profileReply(data);
-      return typeof data.id === "string" && Object.hasOwn(evidence, data.id)
-        ? { status: "answer", id: data.id } : null;
+      return profileReply(data);
     } catch {
       return null;
     }
@@ -84,20 +96,40 @@ new MutationObserver(() => {
 }).observe(ask, { attributes: true, attributeFilter: ["inert"] });
 window.addEventListener("pagehide", cancelRequest);
 
-function recordAnswer(id) {
-  const record = evidence[id];
-  return { text: record.text, links: record.sourceIds.map(sourceId => sources[sourceId]) };
-}
-
 const serviceFallback = {
-  text: "The live answer is unavailable. You can ask about a featured project or open Projects.",
-  links: [sources.projects],
+  text: "The live answer is unavailable right now.",
+  links: [],
 };
 const unsupported = {
   text: "I don’t have that information in the reviewed portfolio.",
   links: [],
 };
-const projectShortcut = /^(?:show (?:me )?the projects|what projects are featured)[?.!]*$/u;
+const projectShortcut = /^(?:open|show|view)(?: me)? (?:the )?projects[?.!]*$/u;
+const resumeLink = { label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" };
+const linkedInLink = { label: "LinkedIn", url: "https://au.linkedin.com/in/khybolt" };
+const professionalUrls = new Set([resumeLink.url, linkedInLink.url]);
+const linkLead = /^(?:please )?(?:(?:can|could|would|may|will) (?:you|i) )?(?:please )?(?:send|share|show|give|provide|get|find|see|view|open|download|have|link)(?: me)? |^(?:what(?: is|'s)|where(?: is|'s| can i (?:find|get|see|download))|do you have|does (?:he|khy(?: bolt)?) have) /u;
+const linkTarget = /^(?:(?:a|the|to|his|your|khy(?: bolt)?(?:'s)?|copy of|link to|link for|pdf of) )*(resume|cv|linkedin)(?: (?:pdf|profile|link|url|download|please))*[.!]*$/u;
+const declinedLink = /\b(?:without|do not|don't|no|skip|hide|avoid|not)\s+(?:(?:show(?:ing)?|shar(?:e|ing)|include|including|send(?:ing)?|the|any|his|your|a)\s+)*(?:resume|cv|linkedin)\b/u;
+
+function requestedProfessionalLinks(question) {
+  const text = normalizeQuestion(question).normalize("NFKD").replace(/\p{M}/gu, "").replace(/’/gu, "'");
+  if (declinedLink.test(text)) return { links: [], only: false };
+  const clauses = text.split(/\s*(?:[?;]|,?\s+(?:and|or|&)\s+)\s*/u).filter(Boolean);
+  const bareList = clauses.every(clause => linkTarget.test(clause));
+  const requests = [];
+  for (const clause of clauses) {
+    const explicit = linkLead.test(clause);
+    requests.push(explicit || bareList || requests.at(-1)
+      ? linkTarget.exec(clause.replace(linkLead, ""))?.[1] : undefined);
+  }
+  const links = [...new Set(requests.filter(Boolean).map(target => target === "linkedin" ? linkedInLink : resumeLink))];
+  return { links, only: links.length > 0 && requests.every(Boolean) };
+}
+
+function linksForTurn(links, requested) {
+  return [...(links ?? []).filter(link => !professionalUrls.has(link.url)), ...requested];
+}
 
 function nearEnd() {
   return transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 72;
@@ -264,34 +296,37 @@ async function submitQuestion() {
     appendTurn("You", question, { delay: first ? 90 : 0 });
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    const { id } = await resolveAnswer(question, topic);
-    let answer = answers[id];
-    let selectedTopic = nextTopic(id, topic, question);
-    let selectedContext = [];
-    if (remote && !ask.inert && !isExcludedProfileQuestion(question) && !projectShortcut.test(normalizeQuestion(question))) {
+    let answer = unsupported;
+    let selectedContext = context;
+    const requested = requestedProfessionalLinks(question);
+    if (requested.only) {
+      const text = requested.links.length === 2 ? "Khy’s résumé and LinkedIn profile."
+        : requested.links[0] === resumeLink ? "Khy’s general résumé." : "Khy’s LinkedIn profile.";
+      answer = { text };
+    } else if (projectShortcut.test(normalizeQuestion(question))) {
+      answer = { text: "Open the featured projects.", links: [sources.projects] };
+    } else if (!remote && !isExcludedProfileQuestion(question)) {
+      answer = serviceFallback;
+    } else if (remote && !ask.inert && !isExcludedProfileQuestion(question)) {
       activeRequest = new AbortController();
       showPendingAnswer();
-      const result = await remote(question, topic, activeRequest.signal, context);
+      const result = await remote(question, "", activeRequest.signal, context);
       if (activeRequest.signal.aborted || ask.inert) return;
-      if (result?.status === "answer" && result.facts) {
-        const paragraphs = result.facts.map(fact => fact.text);
+      if (result?.status === "answer") {
+        const paragraphs = result.sections
+          ? result.sections.map(parts => parts.map(part => part.text).join(" "))
+          : result.facts.map(fact => fact.text);
         if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
         answer = { text: paragraphs.join("\n\n"), links: result.links };
         selectedContext = result.facts.map(fact => fact.id);
-        selectedTopic = "";
-      } else if (result?.status === "answer") {
-        answer = recordAnswer(result.id);
-        selectedTopic = evidence[result.id].topic;
       } else if (result?.status === "unknown") {
-        answer = unsupported;
-        selectedTopic = "";
-      } else if (id === "not-known" || id === "clarify") {
+        selectedContext = [];
+      } else {
         answer = serviceFallback;
       }
     }
-    topic = selectedTopic;
     context = selectedContext;
-    appendTurn("Portfolio assistant", answer.text, { links: answer.links, delay: first ? 150 : 54 });
+    appendTurn("Portfolio assistant", answer.text, { links: linksForTurn(answer.links, requested.links), delay: first ? 150 : 54 });
   } finally {
     clearPendingAnswer();
     activeRequest = undefined;

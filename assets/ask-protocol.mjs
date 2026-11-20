@@ -1,4 +1,7 @@
 export const MAX_ANSWER_FACTS = 3;
+export const MAX_ANSWER_SECTIONS = 5;
+export const MAX_SECTION_FACTS = 4;
+export const MAX_SUMMARY_FACTS = 14;
 export const MAX_FACT_BYTES = 300;
 export const MAX_ANSWER_LINKS = 3;
 
