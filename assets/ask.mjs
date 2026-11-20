@@ -71,7 +71,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, topic: "", history }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(7500)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(9300)]),
         credentials: "omit",
         cache: "no-store",
         redirect: "error",
