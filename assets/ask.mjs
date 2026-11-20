@@ -129,6 +129,7 @@ function updateViewport() {
   const root = document.documentElement;
   root.style.setProperty("--ask-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
   root.style.setProperty("--ask-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+  if (following && !ask.hidden && !ask.inert) followEnd();
 }
 
 function startConversation() {
@@ -236,9 +237,9 @@ function appendAnswerLinks(turn, links) {
 }
 
 function appendTurn(author, text, { links = [], delay = 0 } = {}) {
-  const follow = nearEnd();
-  const turn = document.createElement("li");
   const visitor = author === "You";
+  const follow = visitor || nearEnd();
+  const turn = document.createElement("li");
   turn.className = visitor ? "ask-turn visitor" : "ask-turn assistant";
   const speaker = document.createElement("span");
   speaker.className = "screen-reader";
