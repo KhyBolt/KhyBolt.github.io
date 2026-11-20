@@ -361,6 +361,19 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   padding: 0;
   list-style: none;
 }
+.ask-resume {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 .8rem;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+  margin-block-start: .5rem;
+  padding-inline: .6rem;
+  border: 1px solid var(--glass-bevel);
+  border-radius: .65rem;
+}
+.ask-resume a,
 .ask-proof a {
   display: inline-flex;
   align-items: center;
@@ -369,6 +382,7 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   font-size: .875rem;
   text-underline-offset: .22em;
 }
+.ask-resume a:focus-visible,
 .ask-proof a:focus-visible { outline-color: var(--glass-keyboard); }
 @media (forced-colors: active) {
   .ask-status.ask-empty { background: Canvas; border-color: ButtonText; }

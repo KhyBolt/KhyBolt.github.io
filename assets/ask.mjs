@@ -1,8 +1,8 @@
 import { sources } from "./ask-claim-data.mjs?v=worker1";
 import {
   isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
-  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS, boundChatHistory, isChatAnswer, isShareableChatText,
-} from "./ask-protocol.mjs?v=career-chat1";
+  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS, boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
+} from "./ask-protocol.mjs?v=career-chat2";
 import { isExcludedProfileQuestion, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
@@ -46,12 +46,17 @@ function isAnswerFact(fact) {
   return isRecordId(fact?.id) && isBoundedText(fact.text, MAX_FACT_BYTES);
 }
 
+function isReleasedLink(link) {
+  return isAnswerLink(link) &&
+    Object.values(portfolioLinks).some(approved => approved.url === link.url && approved.label === link.label);
+}
+
 function profileReply(data) {
   const { facts, links, partial, sections } = data;
   if (!Array.isArray(facts) || !facts.length || facts.length > MAX_ANSWER_FACTS ||
       !facts.every(isAnswerFact) ||
       new Set(facts.map(fact => fact.id)).size !== facts.length ||
-      !Array.isArray(links) || links.length > MAX_ANSWER_LINKS || !links.every(isAnswerLink) ||
+      !Array.isArray(links) || links.length > MAX_ANSWER_LINKS || !links.every(isReleasedLink) ||
       typeof partial !== "boolean") return null;
   if (sections !== undefined) {
     if (!Array.isArray(sections) || !sections.length || sections.length > MAX_ANSWER_SECTIONS ||
@@ -71,7 +76,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, topic: "", history }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(9300)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(36000)]),
         credentials: "omit",
         cache: "no-store",
         redirect: "error",
@@ -81,7 +86,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
       if (data?.status === "unknown") return { status: "unknown" };
       if (data?.status !== "answer") return null;
       if (isChatAnswer(data.paragraphs) && Array.isArray(data.links) &&
-          data.links.length <= MAX_ANSWER_LINKS && data.links.every(isAnswerLink)) {
+          data.links.length <= MAX_ANSWER_LINKS && data.links.every(isReleasedLink)) {
         return { status: "answer", paragraphs: data.paragraphs, links: data.links };
       }
       return profileReply(data);
@@ -109,31 +114,7 @@ const unsupported = {
   links: [],
 };
 const projectShortcut = /^(?:open|show|view)(?: me)? (?:the )?projects[?.!]*$/u;
-const resumeLink = { label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" };
-const linkedInLink = { label: "LinkedIn", url: "https://au.linkedin.com/in/khybolt" };
-const professionalUrls = new Set([resumeLink.url, linkedInLink.url]);
-const linkLead = /^(?:please )?(?:(?:can|could|would|may|will) (?:you|i) )?(?:please )?(?:send|share|show|give|provide|get|find|see|view|open|download|have|link)(?: me)? |^(?:what(?: is|'s)|where(?: is|'s| can i (?:find|get|see|download))|do you have|does (?:he|khy(?: bolt)?) have) /u;
-const linkTarget = /^(?:(?:a|the|to|his|your|khy(?: bolt)?(?:'s)?|copy of|link to|link for|pdf of) )*(resume|cv|linkedin)(?: (?:pdf|profile|link|url|download|please))*[.!]*$/u;
-const declinedLink = /\b(?:without|do not|don't|no|skip|hide|avoid|not)\s+(?:(?:show(?:ing)?|shar(?:e|ing)|include|including|send(?:ing)?|the|any|his|your|a)\s+)*(?:resume|cv|linkedin)\b/u;
-
-function requestedProfessionalLinks(question) {
-  const text = normalizeQuestion(question).normalize("NFKD").replace(/\p{M}/gu, "").replace(/’/gu, "'");
-  if (declinedLink.test(text)) return { links: [], only: false };
-  const clauses = text.split(/\s*(?:[?;]|,?\s+(?:and|or|&)\s+)\s*/u).filter(Boolean);
-  const bareList = clauses.every(clause => linkTarget.test(clause));
-  const requests = [];
-  for (const clause of clauses) {
-    const explicit = linkLead.test(clause);
-    requests.push(explicit || bareList || requests.at(-1)
-      ? linkTarget.exec(clause.replace(linkLead, ""))?.[1] : undefined);
-  }
-  const links = [...new Set(requests.filter(Boolean).map(target => target === "linkedin" ? linkedInLink : resumeLink))];
-  return { links, only: links.length > 0 && requests.every(Boolean) };
-}
-
-function linksForTurn(links, requested) {
-  return [...(links ?? []).filter(link => !professionalUrls.has(link.url)), ...requested];
-}
+const resumeLink = portfolioLinks.resume;
 
 function nearEnd() {
   return transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 72;
@@ -212,6 +193,48 @@ function animateTurn(turn, visitor, delay) {
   animation.finished.then(release, release);
 }
 
+function appendAnswerLinks(turn, links) {
+  if (links.some(({ url }) => url === resumeLink.url)) {
+    const card = document.createElement("div");
+    card.className = "ask-resume";
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", resumeLink.label);
+
+    const open = document.createElement("a");
+    open.href = resumeLink.url;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.textContent = "Open PDF";
+    open.setAttribute("aria-label", "Open PDF in a new tab");
+
+    const download = document.createElement("a");
+    download.href = resumeLink.url;
+    download.download = "Khy-Bolt-Resume.pdf";
+    download.textContent = "Download";
+    download.setAttribute("aria-label", "Download résumé PDF");
+
+    card.append(open, download);
+    turn.append(card);
+  }
+
+  const otherLinks = links.filter(({ url }) => url !== resumeLink.url);
+  if (!otherLinks.length) return;
+  const proof = document.createElement("ul");
+  proof.className = "ask-proof";
+  proof.setAttribute("aria-label", "Answer sources");
+  for (const { label, url } of otherLinks) {
+    const item = document.createElement("li");
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.textContent = label;
+    item.append(anchor);
+    proof.append(item);
+  }
+  turn.append(proof);
+}
+
 function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   const follow = nearEnd();
   const turn = document.createElement("li");
@@ -223,22 +246,7 @@ function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   const message = document.createElement("p");
   message.textContent = text;
   turn.append(speaker, message);
-  if (links.length) {
-    const proof = document.createElement("ul");
-    proof.className = "ask-proof";
-    proof.setAttribute("aria-label", "Answer sources");
-    for (const { label, url } of links) {
-      const item = document.createElement("li");
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.target = "_blank";
-      anchor.rel = "noopener";
-      anchor.textContent = label;
-      item.append(anchor);
-      proof.append(item);
-    }
-    turn.append(proof);
-  }
+  if (links.length) appendAnswerLinks(turn, links);
   log.append(turn);
   following = follow;
   if (follow) followEnd();
@@ -301,12 +309,7 @@ async function submitQuestion() {
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     let answer = unsupported;
-    const requested = requestedProfessionalLinks(question);
-    if (requested.only) {
-      const text = requested.links.length === 2 ? "Khy’s résumé and LinkedIn profile."
-        : requested.links[0] === resumeLink ? "Khy’s general résumé." : "Khy’s LinkedIn profile.";
-      answer = { text };
-    } else if (projectShortcut.test(normalizeQuestion(question))) {
+    if (projectShortcut.test(normalizeQuestion(question))) {
       answer = { text: "Open the featured projects.", links: [sources.projects] };
     } else if (!remote && !isExcludedProfileQuestion(question) && isShareableChatText(question)) {
       answer = serviceFallback;
@@ -328,7 +331,7 @@ async function submitQuestion() {
         answer = serviceFallback;
       }
     }
-    appendTurn("Portfolio assistant", answer.text, { links: linksForTurn(answer.links, requested.links), delay: first ? 150 : 54 });
+    appendTurn("Portfolio assistant", answer.text, { links: answer.links, delay: first ? 150 : 54 });
   } finally {
     clearPendingAnswer();
     activeRequest = undefined;

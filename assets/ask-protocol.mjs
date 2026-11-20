@@ -29,8 +29,8 @@ export function isAnswerLink(value) {
   }
 }
 
-export const MAX_CHAT_PARAGRAPHS = 8;
-export const MAX_CHAT_ANSWER_BYTES = 2400;
+export const MAX_CHAT_PARAGRAPHS = 24;
+export const MAX_CHAT_ANSWER_BYTES = 8192;
 export const MAX_CHAT_TURNS = 2;
 export const MAX_CHAT_HISTORY_BYTES = 3000;
 
@@ -51,6 +51,26 @@ export function isChatAnswer(paragraphs) {
 
 export function boundChatHistory(turns) {
   const recent = turns.slice(-MAX_CHAT_TURNS);
-  while (encoder.encode(JSON.stringify(recent)).byteLength > MAX_CHAT_HISTORY_BYTES) recent.shift();
-  return recent;
+  const fits = value => encoder.encode(JSON.stringify(value)).byteLength <= MAX_CHAT_HISTORY_BYTES;
+  if (fits(recent)) return recent;
+
+  const [latest] = recent.slice(-1);
+  if (fits([latest])) return [latest];
+
+  const answer = [];
+  for (const paragraph of latest.answer) {
+    if (!fits([{ question: latest.question, answer: [...answer, paragraph] }])) break;
+    answer.push(paragraph);
+  }
+  return answer.length ? [{ question: latest.question, answer }] : [];
 }
+
+
+export const portfolioLinks = Object.freeze({
+  resume: Object.freeze({ label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" }),
+  linkedin: Object.freeze({ label: "LinkedIn", url: "https://au.linkedin.com/in/khybolt" }),
+  "colsto-video": Object.freeze({
+    label: "Colsto’s aircraft geolocation video",
+    url: "https://www.youtube.com/watch?v=UytYrhYLOKI",
+  }),
+});
