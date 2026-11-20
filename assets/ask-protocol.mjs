@@ -49,26 +49,49 @@ export function isChatAnswer(paragraphs) {
     paragraphs.every(isChatParagraph) && encoder.encode(paragraphs.join("\n\n")).byteLength <= MAX_CHAT_ANSWER_BYTES;
 }
 
-export function boundChatHistory(turns) {
-  const recent = turns.slice(-MAX_CHAT_TURNS);
-  const fits = value => encoder.encode(JSON.stringify(value)).byteLength <= MAX_CHAT_HISTORY_BYTES;
-  if (fits(recent)) return recent;
+const fitsHistoryBudget = value => encoder.encode(JSON.stringify(value)).byteLength <= MAX_CHAT_HISTORY_BYTES;
 
-  const [latest] = recent.slice(-1);
+export function boundChatHistory(turns, fits = fitsHistoryBudget) {
+  const recent = turns.slice(-MAX_CHAT_TURNS);
+  if (!recent.length || fits(recent)) return recent;
+
+  const latest = recent.at(-1);
   if (fits([latest])) return [latest];
 
+  const { question } = latest;
   const answer = [];
   for (const paragraph of latest.answer) {
-    if (!fits([{ question: latest.question, answer: [...answer, paragraph] }])) break;
-    answer.push(paragraph);
+    const fitsNext = text => fits([{ question, answer: [...answer, text] }]);
+    if (fitsNext(paragraph)) {
+      answer.push(paragraph);
+      continue;
+    }
+
+    const characters = Array.from(paragraph);
+    let low = 1;
+    let high = characters.length - 1;
+    let excerpt;
+    while (low <= high) {
+      const length = Math.floor((low + high) / 2);
+      const text = characters.slice(0, length).join("").trimEnd() + "…";
+      if (fitsNext(text)) {
+        excerpt = text;
+        low = length + 1;
+      } else {
+        high = length - 1;
+      }
+    }
+    if (excerpt && isChatParagraph(excerpt)) answer.push(excerpt);
+    break;
   }
-  return answer.length ? [{ question: latest.question, answer }] : [];
+  return answer.length ? [{ question, answer }] : [];
 }
 
 
 export const portfolioLinks = Object.freeze({
   resume: Object.freeze({ label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" }),
   linkedin: Object.freeze({ label: "LinkedIn", url: "https://au.linkedin.com/in/khybolt" }),
+  projects: Object.freeze({ label: "Featured projects", url: "https://khybolt.github.io/#projects" }),
   "colsto-video": Object.freeze({
     label: "Colsto’s aircraft geolocation video",
     url: "https://www.youtube.com/watch?v=UytYrhYLOKI",
