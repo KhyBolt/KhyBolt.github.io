@@ -81,7 +81,12 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         cache: "no-store",
         redirect: "error",
       });
-      if (!response.ok || !response.headers.get("Content-Type")?.startsWith("application/json")) return null;
+      const json = response.headers.get("Content-Type")?.startsWith("application/json");
+      if (response.status === 429) {
+        const data = json ? await response.json().catch(() => null) : null;
+        return { status: "rate-limited", limit: data?.limit, retryAfter: Number(response.headers.get("Retry-After")) };
+      }
+      if (!response.ok || !json) return null;
       const data = await response.json();
       if (data?.status === "unknown") return { status: "unknown" };
       if (data?.status !== "answer") return null;
@@ -109,6 +114,17 @@ const serviceFallback = {
   text: "The live answer is unavailable right now.",
   links: [],
 };
+function quotaMessage({ limit, retryAfter }) {
+  if (limit === "daily") return "The portfolio assistant has reached today’s limit. Please try again after midnight UTC.";
+  if (limit === "minute") {
+    if (retryAfter === 1) return "Too many requests just now. Please try again in one second.";
+    if (Number.isSafeInteger(retryAfter) && retryAfter >= 2 && retryAfter <= 60) {
+      return "Too many requests just now. Please try again in " + retryAfter + " seconds.";
+    }
+    return "Too many requests just now. Please try again in a minute.";
+  }
+  return "The portfolio assistant is rate limited. Please try again later.";
+}
 const unsupported = {
   text: "I don’t have that information in the reviewed portfolio.",
   links: [],
@@ -326,6 +342,8 @@ async function submitQuestion() {
         if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
         answer = { text: paragraphs.join("\n\n"), links: result.links };
         if (isChatAnswer(paragraphs)) history = boundChatHistory([...history, { question, answer: paragraphs }]);
+      } else if (result?.status === "rate-limited") {
+        answer = { text: quotaMessage(result) };
       } else if (result?.status === "unknown") {
         history = boundChatHistory([...history, { question, answer: [unsupported.text] }]);
       } else {
