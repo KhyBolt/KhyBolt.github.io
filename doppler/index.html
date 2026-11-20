@@ -8,6 +8,10 @@
   <title>Aircraft Geolocation with Audio | Khy Bolt</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
+  <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
+  <link rel="stylesheet" href="./livermore.css">
+  <script src="./assets/leaflet/leaflet.js" defer></script>
+  <script src="./livermore.js" defer></script>
   <script src="./assets/case.js" defer></script>
   <script src="./demo.js" defer></script>
 </head>
@@ -23,6 +27,7 @@
       <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Acoustics / Synthetic benchmark</p>
       <h1>Aircraft Geolocation with Audio<span aria-hidden="true">.</span></h1>
       <p>Can two flyovers tell you where a microphone was?</p>
+      <a class="livermore-jump" href="#livermore">Open the Livermore field replay <span aria-hidden="true">↓</span></a>
     </div>
     <noscript><p class="noscript">Enable JavaScript for the interactive replay, or <a href="https://github.com/KhyBolt/aircraft-doppler/blob/main/example/synthetic.wav">open the full synthetic recording</a> and <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/evidence">open the saved search evidence</a>.</p></noscript>
     <p class="noscript" id="data-error" hidden>The saved replay could not be loaded. Try refreshing the page or <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/evidence">open the search evidence</a>.</p>
@@ -127,6 +132,52 @@ python demo_replay.py --output runs/exact-demo</code></pre>
         </details>
       </section>
     </div>
+    <section id="livermore" class="chapter" aria-labelledby="livermore-title">
+      <div class="chapter-heading">
+        <div><p class="eyebrow">Field replay / adsb.lol only</p><h2 id="livermore-title">Livermore field replay</h2></div>
+        <p class="aside-caption">17 May 2026 · California</p>
+      </div>
+      <div class="livermore-copy">
+        <p>This replay used two public research clips and a day of historical ADS-B data from adsb.lol. The solver ranked the study’s matching pair <strong>first out of 17,101 candidate pairs</strong>. Its top estimate was <strong>321 m from the study-reported recorder position</strong> for this example.</p>
+        <p>The solver still abstained after its checks on withheld audio.</p>
+      </div>
+      <figure class="livermore-figure" aria-labelledby="livermore-title">
+        <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Livermore map controls" hidden>
+          <button class="secondary-button livermore-zoom" id="livermore-in" type="button" aria-label="Zoom in">+</button>
+          <button class="secondary-button livermore-zoom" id="livermore-out" type="button" aria-label="Zoom out">−</button>
+          <button class="secondary-button" id="livermore-fit" type="button">Fit search area</button>
+          <button class="secondary-button" id="livermore-scores" type="button" aria-pressed="true">Fit scores</button>
+          <p class="livermore-help" id="livermore-help">Drag or pinch. With the map focused, use arrow keys and + or −.</p>
+        </div>
+        <div class="livermore-surface">
+          <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help" tabindex="0" hidden></div>
+          <div class="livermore-fallback" id="livermore-fallback">
+            <img src="./assets/livermore/livermore-adsblol-coarse-score.png" width="768" height="768" alt="Saved score layer for the 10 by 10 kilometre Livermore search area. Darker cells show a closer fit." loading="lazy">
+          </div>
+        </div>
+        <p class="livermore-status" id="livermore-status" role="status" hidden></p>
+        <figcaption>
+          <div class="livermore-legend">
+            <p class="livermore-key">10 × 10 km search boundary</p>
+            <p><strong>Minimum training frequency MSE (Hz²)</strong> · Darker cells fit the observed audio more closely.</p>
+            <ul class="livermore-bands" aria-label="Score bins in squared hertz">
+              <li style="--swatch:#065355">&lt; 1</li>
+              <li style="--swatch:#007774">1–&lt;2</li>
+              <li style="--swatch:#2c938a">2–&lt;3</li>
+              <li style="--swatch:#61a89c">3–&lt;4</li>
+              <li style="--swatch:#9bc1b3">4–&lt;6</li>
+              <li style="--swatch:#cadbce">≥ 6</li>
+            </ul>
+            <p>Relative solver-fit scores from 121 sampled nodes, spaced 1 km apart, in the separate adsb.lol-only replay. These scores do not represent probability.</p>
+          </div>
+          <div class="livermore-credits">
+            <p>Basemap from <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program · The National Map</a>.</p>
+            <p>Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License (ODbL 1.0)</a>. <a href="./assets/livermore/replay-method.md">Replay method</a> · <a href="./assets/livermore/archive-query.py">Archive query</a> · <a href="./assets/livermore/overlay-metadata.json">Overlay metadata</a>.</p>
+            <p>Research audio by <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak, <cite>Aeroplane data full analysis and raw files</cite>, v2</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+          </div>
+        </figcaption>
+      </figure>
+    </section>
   </main>
   <footer class="shell footer"><span>Khy Bolt</span><a href="../">Back to portfolio <span aria-hidden="true">↗</span></a></footer>
 </body>

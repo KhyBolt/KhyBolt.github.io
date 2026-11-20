@@ -1,0 +1,200 @@
+{
+  "asset": "livermore-adsblol-coarse-score.png",
+  "sha256": "32598daaaf98fa787898821b2c70348c52c4228176a32bac449b329151ffa9ab",
+  "benchmark": "Livermore full-day adsb.lol-only replay",
+  "original_clip_date_utc": "2026-05-17",
+  "clock_shards_each_arm": 24,
+  "provider": "adsb.lol",
+  "image_size_px": [
+    768,
+    768
+  ],
+  "image_crs": "EPSG:3857",
+  "bounds_3857": [
+    -13567297.152888011,
+    4529862.626129704,
+    -13554663.990053361,
+    4542543.329741885
+  ],
+  "image_corners_wgs84_lon_lat": [
+    [
+      -121.877103966,
+      37.738451108
+    ],
+    [
+      -121.763618334,
+      37.738451108
+    ],
+    [
+      -121.763618334,
+      37.648312675
+    ],
+    [
+      -121.877103966,
+      37.648312675
+    ]
+  ],
+  "corner_order": [
+    "northwest",
+    "northeast",
+    "southeast",
+    "southwest"
+  ],
+  "sampling": {
+    "score_grid_frame": "WGS84 ECEF/ENU tangent plane, public Livermore Municipal Airport reference point",
+    "dimensions_nodes": [
+      11,
+      11
+    ],
+    "coarse_node_spacing_m": 1000,
+    "observed_nodes": 121,
+    "missing_nodes": 0,
+    "render": "Nearest-node colors clipped to the 10 × 10 km ENU square. PNG pixels do not add measurements.",
+    "nodata": "Transparent outside search square or where nearest node has no finite score."
+  },
+  "legend": {
+    "units": "Hz²",
+    "quantity": "Minimum training frequency MSE; lower is a closer training fit",
+    "aggregation": "At each node, minimum over eligible pairs and valid clocks of the equally weighted mean of both passes’ frequency MSEs.",
+    "bands": [
+      {
+        "label": "< 1",
+        "rgba": [
+          6,
+          83,
+          85,
+          222
+        ]
+      },
+      {
+        "label": "1 to < 2",
+        "rgba": [
+          0,
+          119,
+          116,
+          208
+        ]
+      },
+      {
+        "label": "2 to < 3",
+        "rgba": [
+          44,
+          147,
+          138,
+          190
+        ]
+      },
+      {
+        "label": "3 to < 4",
+        "rgba": [
+          97,
+          168,
+          156,
+          169
+        ]
+      },
+      {
+        "label": "4 to < 6",
+        "rgba": [
+          155,
+          193,
+          179,
+          150
+        ]
+      },
+      {
+        "label": "≥ 6",
+        "rgba": [
+          202,
+          219,
+          206,
+          133
+        ]
+      }
+    ]
+  },
+  "benchmark_controls": {
+    "original": {
+      "ordered_pair_rank": 1,
+      "ranked_ordered_pairs": 17101,
+      "diagnostic_reference_distance_m": 320.6193689331322,
+      "acoustic_survivors": 0,
+      "leading_heldout_block_pass_fractions": [
+        1.0,
+        0.25
+      ],
+      "wall_s": 37.64
+    },
+    "swapped": {
+      "ordered_pair_rank": 1230,
+      "ranked_ordered_pairs": 17170,
+      "diagnostic_reference_distance_m": 5701.072102801159,
+      "acoustic_survivors": 0,
+      "leading_heldout_block_pass_fractions": [
+        0.25,
+        0.6666666666666666
+      ],
+      "wall_s": 36.9
+    },
+    "wrong_day": {
+      "ordered_pair_rank": null,
+      "ranked_ordered_pairs": 9252,
+      "diagnostic_reference_distance_m": 3992.016334810551,
+      "acoustic_survivors": 0,
+      "leading_heldout_block_pass_fractions": [
+        0.6666666666666666,
+        0.25
+      ],
+      "wall_s": 24.14
+    }
+  },
+  "lock_wall_s": 154.48,
+  "archive_receipts": [
+    {
+      "date_utc": "2026-05-17",
+      "shards": 24,
+      "rows_including_hourly_overlap": 177352,
+      "admitted_segments_including_hourly_overlap": 3358,
+      "canonical_row_manifest_sha256": "d29fb193d0ae54f4f74da4c8186bb11e861d32e4d62332b9abc20a7495d0af47"
+    },
+    {
+      "date_utc": "2026-05-18",
+      "shards": 24,
+      "rows_including_hourly_overlap": 124713,
+      "admitted_segments_including_hourly_overlap": 2531,
+      "canonical_row_manifest_sha256": "bbdc5046a0456e62f95c3f1bbd3bff52ab31651d7f08ca4facc4050f660c1c5e"
+    }
+  ],
+  "audio": {
+    "public_record": "https://doi.org/10.5281/zenodo.24075029",
+    "license": "CC-BY-4.0",
+    "clips": [
+      {
+        "first_sample_utc": "2026-05-17T22:03:02.336Z",
+        "sha256": "7834bad6d620df2143b396325fd861d6581d5ad25dd9bcfa997eb953d13a65f5",
+        "sample_rate_hz": 48000,
+        "sample_count": 6599424
+      },
+      {
+        "first_sample_utc": "2026-05-17T22:20:09.578Z",
+        "sha256": "a19c78d9d147a6e8b4b2c495bd344787363875ea411e3af21b59490517832495",
+        "sample_rate_hz": 48000,
+        "sample_count": 5493505
+      }
+    ],
+    "relative_start_gap_s": 1027.242,
+    "reference": "Author-reported phone position used after locking; independent survey uncertainty unverified."
+  },
+  "solver": {
+    "pinned_solver": "e963ab83dccd5a205f3b16558bd90d4307bc38b6",
+    "pinned_clock_screen": "5c361a53653d47f203ec69521542f3cf6955e63f",
+    "public_archive_recipe": "archive-query.py",
+    "score_hook": "Report-only minima sampled before reduction"
+  },
+  "credit": {
+    "display_text": "Contains information from adsb.lol historical data, available under the Open Database License (ODbL 1.0).",
+    "source": "https://www.adsb.lol/docs/open-data/historical",
+    "license": "https://opendatacommons.org/licenses/odbl/1-0/",
+    "index": "https://github.com/ClickHouse/adsb.exposed#data-source"
+  }
+}
