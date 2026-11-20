@@ -1,8 +1,8 @@
 import { sources } from "./ask-claim-data.mjs?v=worker1";
 import {
   isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
-  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
-} from "./ask-protocol.mjs?v=work-history1";
+  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS, boundChatHistory, isChatAnswer, isShareableChatText,
+} from "./ask-protocol.mjs?v=career-chat1";
 import { isExcludedProfileQuestion, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
@@ -15,7 +15,7 @@ const log = transcript.querySelector(".ask-log");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
 const statusMessage = status.querySelector(".ask-status-text");
-let context = [];
+let history = [];
 let busy = false;
 let following = true;
 
@@ -65,12 +65,12 @@ function profileReply(data) {
 }
 
 export function createClientTransport(url, fetcher = globalThis.fetch) {
-  return async (question, prior, signal, previous = []) => {
+  return async (question, signal, history = []) => {
     try {
       const response = await fetcher(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(previous.length ? { question, topic: prior, context: previous } : { question, topic: prior }),
+        body: JSON.stringify({ question, topic: "", history }),
         signal: AbortSignal.any([signal, AbortSignal.timeout(7500)]),
         credentials: "omit",
         cache: "no-store",
@@ -80,6 +80,10 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
       const data = await response.json();
       if (data?.status === "unknown") return { status: "unknown" };
       if (data?.status !== "answer") return null;
+      if (isChatAnswer(data.paragraphs) && Array.isArray(data.links) &&
+          data.links.length <= MAX_ANSWER_LINKS && data.links.every(isAnswerLink)) {
+        return { status: "answer", paragraphs: data.paragraphs, links: data.links };
+      }
       return profileReply(data);
     } catch {
       return null;
@@ -297,7 +301,6 @@ async function submitQuestion() {
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     let answer = unsupported;
-    let selectedContext = context;
     const requested = requestedProfessionalLinks(question);
     if (requested.only) {
       const text = requested.links.length === 2 ? "Khy’s résumé and LinkedIn profile."
@@ -305,27 +308,26 @@ async function submitQuestion() {
       answer = { text };
     } else if (projectShortcut.test(normalizeQuestion(question))) {
       answer = { text: "Open the featured projects.", links: [sources.projects] };
-    } else if (!remote && !isExcludedProfileQuestion(question)) {
+    } else if (!remote && !isExcludedProfileQuestion(question) && isShareableChatText(question)) {
       answer = serviceFallback;
-    } else if (remote && !ask.inert && !isExcludedProfileQuestion(question)) {
+    } else if (remote && !ask.inert && !isExcludedProfileQuestion(question) && isShareableChatText(question)) {
       activeRequest = new AbortController();
       showPendingAnswer();
-      const result = await remote(question, "", activeRequest.signal, context);
+      const result = await remote(question, activeRequest.signal, history);
       if (activeRequest.signal.aborted || ask.inert) return;
       if (result?.status === "answer") {
-        const paragraphs = result.sections
+        const paragraphs = result.paragraphs ?? (result.sections
           ? result.sections.map(parts => parts.map(part => part.text).join(" "))
-          : result.facts.map(fact => fact.text);
+          : result.facts.map(fact => fact.text));
         if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
         answer = { text: paragraphs.join("\n\n"), links: result.links };
-        selectedContext = result.facts.map(fact => fact.id);
+        if (isChatAnswer(paragraphs)) history = boundChatHistory([...history, { question, answer: paragraphs }]);
       } else if (result?.status === "unknown") {
-        selectedContext = [];
+        history = boundChatHistory([...history, { question, answer: [unsupported.text] }]);
       } else {
         answer = serviceFallback;
       }
     }
-    context = selectedContext;
     appendTurn("Portfolio assistant", answer.text, { links: linksForTurn(answer.links, requested.links), delay: first ? 150 : 54 });
   } finally {
     clearPendingAnswer();
