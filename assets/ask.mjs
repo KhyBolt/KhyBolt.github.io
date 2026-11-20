@@ -115,6 +115,9 @@ const serviceFallback = {
   links: [],
 };
 function quotaMessage({ limit, retryAfter }) {
+  if (limit === "provider-daily") {
+    return "The assistant has reached its AI provider’s free allowance for today. Please try again after 00:00 UTC (10 am Brisbane time).";
+  }
   if (limit === "daily") return "The portfolio assistant has reached today’s limit. Please try again after midnight UTC.";
   if (limit === "minute") {
     if (retryAfter === 1) return "Too many requests just now. Please try again in one second.";
