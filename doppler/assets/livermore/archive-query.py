@@ -11,8 +11,8 @@ import hashlib
 import io
 import json
 import math
-from urllib.parse import urlencode
-from urllib.request import urlopen
+import urllib.parse
+import urllib.request
 
 import numpy as np
 import pandas as pd
