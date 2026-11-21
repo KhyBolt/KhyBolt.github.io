@@ -89,7 +89,7 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: bodyFor(recent),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(36000)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(84000)]),
         credentials: "omit",
         cache: "no-store",
         redirect: "error",
