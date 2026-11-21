@@ -1,18 +1,24 @@
 .doppler-intro { padding-block: clamp(26px, 4.5vw, 60px) clamp(25px, 4vw, 45px); }
 .doppler-intro h1 { max-width: 19ch; font-size: clamp(2.35rem, 6vw, 5.05rem); line-height: 1; letter-spacing: -.065em; margin-bottom: 14px; }
-.doppler-intro > p:last-child { max-width: 58ch; font-size: clamp(1rem, 1.8vw, 1.2rem); letter-spacing: -.01em; }
+.doppler-intro .intro-description { max-width: 58ch; font-size: clamp(1rem, 1.8vw, 1.2rem); letter-spacing: -.01em; }
+.doppler-intro .intro-requirements { max-width: 58ch; margin-top: 8px; }
+.intro-listen { margin-top: 16px; color: var(--muted); }
+.intro-listen p { margin-bottom: 5px; font-size: .84rem; }
+.intro-listen audio { display: block; width: min(100%, 24rem); }
 
 .livermore-section { margin-bottom: clamp(34px, 6vw, 64px); }
 .livermore-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 16px; flex-wrap: wrap; margin-bottom: 12px; }
 .livermore-heading h2 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.2rem); letter-spacing: -.045em; }
 .livermore-heading p { color: var(--muted); font-size: .82rem; }
-.livermore-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(192px, 25%); gap: clamp(18px, 4vw, 45px); align-items: start; }
+.livermore-example { max-width: 68ch; margin-bottom: 15px; color: var(--muted); font-size: .94rem; line-height: 1.55; }
+.livermore-example a { display: inline-block; color: var(--mint); text-underline-offset: .18em; }
 .livermore-figure { min-width: 0; }
 .livermore-surface { position: relative; isolation: isolate; height: clamp(360px, 49vw, 515px); background: var(--panel); }
 .livermore-map, .livermore-fallback { width: 100%; height: 100%; background: #26362d; }
 .livermore-map:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
 .livermore-map .leaflet-image-layer, .livermore-fallback img { image-rendering: pixelated; }
 .livermore-map .leaflet-control-scale-line { background: #f4f5e9; color: #17251d; }
+.livermore-map .livermore-study-track { filter: drop-shadow(0 0 1px #fff); }
 .livermore-fallback { display: grid; place-items: center; padding: 12px; }
 .livermore-fallback img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
@@ -36,14 +42,14 @@
 .livermore-bands li { color: var(--ink); font: .72rem/1.3 var(--mono); white-space: nowrap; }
 .livermore-bands li::before { content: ""; display: block; height: 7px; margin-bottom: 3px; background: var(--swatch); }
 .livermore-credit { margin-top: 7px; color: var(--dim); font-size: .7rem; }
-.livermore-credit a, .replay-results a { color: var(--mint); text-underline-offset: .18em; }
+.livermore-credit a, .livermore-study-legend a, .replay-results a { color: var(--mint); text-underline-offset: .18em; }
+.livermore-study-legend { margin-top: 9px; max-width: 70ch; }
+.livermore-study-legend ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 3px; padding: 0; list-style: none; color: var(--ink); }
+.livermore-study-legend li { display: flex; align-items: center; gap: 6px; }
+.livermore-study-legend li::before { content: ""; width: 16px; border-top: 3px solid #4275b4; }
+.livermore-study-legend .study-second-key::before { border-color: #873a9d; border-top-style: dashed; }
+.livermore-study-legend .study-observer-key::before { width: 10px; height: 10px; border: 2px solid #182a21; border-radius: 50%; background: #fff8d6; }
 
-.livermore-result { padding-block: 1px 5px; border-top: 1px solid var(--line); color: var(--muted); font-size: .96rem; line-height: 1.55; }
-.livermore-result p + p { margin-top: 10px; }
-.livermore-outcome { margin-top: 11px; color: var(--truth); font-size: .87rem; font-weight: 650; }
-.livermore-result .livermore-distance { margin-top: 7px; color: var(--ink); font-size: clamp(2.5rem, 5.7vw, 4.8rem); font-weight: 620; letter-spacing: -.075em; line-height: 1; }
-.livermore-distance span { color: var(--mint); font-size: .55em; letter-spacing: -.045em; }
-.livermore-result strong { color: var(--ink); }
 .replay-results { max-width: 790px; }
 .replay-results > p, .replay-details p { margin-top: 12px; color: var(--muted); font-size: .94rem; line-height: 1.6; }
 .replay-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .87rem; color: var(--ink); text-align: left; }
@@ -58,12 +64,11 @@
 .synthetic-replay details > summary h2 { display: inline; }
 
 @media (max-width: 740px) {
-  .livermore-layout { grid-template-columns: minmax(0, 1fr); gap: 17px; }
   .livermore-surface { height: clamp(330px, 90vw, 480px); }
-  .livermore-result { max-width: 58ch; }
   .livermore-legend { gap: 5px 12px; }
 }
 @media (max-width: 410px) {
+  .livermore-tools button { padding-inline: 7px; }
   .replay-table { font-size: .78rem; }
   .replay-table th, .replay-table td { padding-right: 6px; }
 }

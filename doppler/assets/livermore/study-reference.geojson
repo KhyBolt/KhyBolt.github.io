@@ -1,0 +1,185 @@
+{
+  "type": "FeatureCollection",
+  "source": {
+    "author": "Praveen Pathak",
+    "title": "Aeroplane data full analysis and raw files",
+    "release": "v2",
+    "doi": "https://doi.org/10.5281/zenodo.24075029",
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "transformation": "The observer comes from the matching published CSV rows. Each line retains the KML points inside its matching WAV recording interval, without timestamps or altitude."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "track",
+        "excerpt": 1,
+        "case": "N9393T_R02",
+        "track_file": "N9393T-track-EGM96.kml",
+        "kml_sha256": "f2144b61154aac62120e5c531de5133a68c341434a90f92cd92308b42b1d16e9"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -121.817108,
+            37.709335
+          ],
+          [
+            -121.812346,
+            37.705451
+          ],
+          [
+            -121.807868,
+            37.701819
+          ],
+          [
+            -121.806121,
+            37.700363
+          ],
+          [
+            -121.800161,
+            37.695557
+          ],
+          [
+            -121.793849,
+            37.690384
+          ],
+          [
+            -121.790051,
+            37.687225
+          ],
+          [
+            -121.784701,
+            37.682826
+          ],
+          [
+            -121.77873,
+            37.677892
+          ],
+          [
+            -121.773237,
+            37.673376
+          ],
+          [
+            -121.767844,
+            37.668915
+          ],
+          [
+            -121.762012,
+            37.664066
+          ],
+          [
+            -121.756459,
+            37.659503
+          ],
+          [
+            -121.75013,
+            37.65429
+          ],
+          [
+            -121.743417,
+            37.648773
+          ],
+          [
+            -121.736229,
+            37.642868
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "track",
+        "excerpt": 2,
+        "case": "N86LP_R01",
+        "track_file": "N86LP-track-EGM96.kml",
+        "kml_sha256": "06f1c92a04715df98ec35a181c17e84fca5784f0c0300e0357fc237b8929f6b9"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -121.75306,
+            37.642136
+          ],
+          [
+            -121.754988,
+            37.643967
+          ],
+          [
+            -121.760306,
+            37.649094
+          ],
+          [
+            -121.764639,
+            37.653219
+          ],
+          [
+            -121.769247,
+            37.657608
+          ],
+          [
+            -121.77264,
+            37.66076
+          ],
+          [
+            -121.777837,
+            37.665619
+          ],
+          [
+            -121.782432,
+            37.669885
+          ],
+          [
+            -121.788356,
+            37.675369
+          ],
+          [
+            -121.793557,
+            37.680267
+          ],
+          [
+            -121.798933,
+            37.685257
+          ],
+          [
+            -121.803987,
+            37.689949
+          ],
+          [
+            -121.8084,
+            37.694092
+          ],
+          [
+            -121.813899,
+            37.699213
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "kind": "observer",
+        "source_file": "final_results_40_cases.csv",
+        "columns": [
+          "observer_lon",
+          "observer_lat"
+        ],
+        "case_rows": [
+          "N9393T_R02",
+          "N86LP_R01"
+        ]
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.781868,
+          37.663202
+        ]
+      }
+    }
+  ]
+}

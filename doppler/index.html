@@ -9,9 +9,9 @@
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
   <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="./livermore.css?v=editorial1">
+  <link rel="stylesheet" href="./livermore.css?v=editorial2">
   <script src="./assets/leaflet/leaflet.js" defer></script>
-  <script src="./livermore.js?v=editorial1" defer></script>
+  <script src="./livermore.js?v=editorial2" defer></script>
   <script src="./assets/case.js" defer></script>
   <script src="./demo.js" defer></script>
 </head>
@@ -25,63 +25,72 @@
   <main class="shell">
     <div class="hero doppler-intro">
       <h1>Aircraft Geolocation with Audio<span aria-hidden="true">.</span></h1>
-      <p>Two aircraft fly past a recorder. This project compares the changing pitch in the audio with flight tracks to see where the sound could have been recorded.</p>
+      <p class="intro-description">This tool estimates where a recording was made by comparing the changing pitch of passing aircraft with historical flight tracks.</p>
+      <p class="intro-requirements">Start with a rough recording time and search area, and audio with two clearly audible flyovers.</p>
+      <div class="intro-listen">
+        <p id="intro-listen-label">Hear the pitch drop in two synthetic flyover excerpts.</p>
+        <audio controls preload="none" src="./assets/excerpts.mp3" aria-labelledby="intro-listen-label">
+          <a href="./assets/excerpts.mp3">Listen to the synthetic excerpts</a>
+        </audio>
+      </div>
     </div>
     <section id="livermore" class="livermore-section" aria-labelledby="livermore-title">
       <div class="livermore-heading">
-        <h2 id="livermore-title">Livermore, California</h2>
+        <h2 id="livermore-title">Search heatmap · Livermore, California</h2>
         <p><time datetime="2026-05-17">17 May 2026</time> · Full-day replay</p>
       </div>
-      <div class="livermore-layout">
-        <figure class="livermore-figure" aria-labelledby="livermore-title">
-          <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Map controls" hidden>
-            <div class="livermore-zoom">
-              <button id="livermore-in" type="button" aria-label="Zoom in">+</button>
-              <button id="livermore-out" type="button" aria-label="Zoom out">−</button>
-            </div>
-            <div class="livermore-actions">
-              <button id="livermore-fit" type="button">Fit area</button>
-              <button id="livermore-scores" type="button" aria-pressed="true">Scores</button>
+      <p class="livermore-example">The colours show how closely the model matched the audio at 121 sample locations, spaced 1 km apart. Zoom in to see the sampling grid. <a href="#livermore-benchmark-notes">Read the benchmark notes</a>.</p>
+      <figure class="livermore-figure" aria-labelledby="livermore-title">
+        <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Map controls" hidden>
+          <div class="livermore-zoom">
+            <button id="livermore-in" type="button" aria-label="Zoom in">+</button>
+            <button id="livermore-out" type="button" aria-label="Zoom out">−</button>
+          </div>
+          <div class="livermore-actions">
+            <button id="livermore-fit" type="button">Fit area</button>
+            <button id="livermore-scores" type="button" aria-pressed="true">Scores</button>
+            <button id="livermore-study" type="button" aria-label="Study references" aria-controls="livermore-study-legend" aria-pressed="false">Study</button>
+          </div>
+        </div>
+        <div class="livermore-surface">
+          <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help livermore-scale-note" tabindex="0" hidden></div>
+          <div class="livermore-fallback" id="livermore-fallback">
+            <img src="./assets/livermore/livermore-adsblol-coarse-fit-v2.png" width="768" height="768" alt="Saved fit scores across the 10 by 10 kilometre search square. Dark red shows the closest fit.">
+          </div>
+        </div>
+        <p class="sr-only" id="livermore-help">Drag to pan or pinch to zoom. With the map focused, use the mouse wheel, arrow keys and plus or minus.</p>
+        <p class="livermore-status" id="livermore-status" role="status" hidden></p>
+        <figcaption class="livermore-caption">
+          <div class="livermore-legend">
+            <p class="livermore-key">10 × 10 km search area</p>
+            <div class="livermore-score-legend" id="livermore-score-legend">
+              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Pitch error (Hz²)</span><strong>Weaker fit</strong></div>
+              <ol class="livermore-bands" aria-label="Training pitch error by colour, in squared hertz">
+                <li style="--swatch:#691019">&lt;1</li>
+                <li style="--swatch:#b82e32">1–&lt;2</li>
+                <li style="--swatch:#dd5d3e">2–&lt;3</li>
+                <li style="--swatch:#ec8d59">3–&lt;4</li>
+                <li style="--swatch:#f0b27e">4–&lt;6</li>
+                <li style="--swatch:#e9cfab">≥6</li>
+              </ol>
+              <p id="livermore-scale-note">Lower error means a closer relative fit to the recorded audio. The colours are not probabilities.</p>
             </div>
           </div>
-          <div class="livermore-surface">
-            <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help livermore-scale-note" tabindex="0" hidden></div>
-            <div class="livermore-fallback" id="livermore-fallback">
-              <img src="./assets/livermore/livermore-adsblol-coarse-fit-v2.png" width="768" height="768" alt="Saved fit scores across the 10 by 10 kilometre search square. Dark red shows the closest fit.">
-            </div>
+          <div class="livermore-study-legend" id="livermore-study-legend" hidden>
+            <ul aria-label="Study references">
+              <li class="study-observer-key">Study phone position</li>
+              <li class="study-first-key">Study track · excerpt 1</li>
+              <li class="study-second-key">Study track · excerpt 2</li>
+            </ul>
+            <p>The marker and flight samples come from <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak’s published study data</a>, v2, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The track lines cover the two recording intervals. The heatmap is the solver’s separate result.</p>
           </div>
-          <p class="sr-only" id="livermore-help">Drag to pan or pinch to zoom. With the map focused, use the mouse wheel, arrow keys and plus or minus.</p>
-          <p class="livermore-status" id="livermore-status" role="status" hidden></p>
-          <figcaption class="livermore-caption">
-            <div class="livermore-legend">
-              <p class="livermore-key">10 × 10 km search area</p>
-              <div class="livermore-score-legend" id="livermore-score-legend">
-                <div class="livermore-scale-title"><strong>Closer fit</strong><span>Pitch error (Hz²)</span><strong>Weaker fit</strong></div>
-                <ol class="livermore-bands" aria-label="Training pitch error by colour, in squared hertz">
-                  <li style="--swatch:#691019">&lt;1</li>
-                  <li style="--swatch:#b82e32">1–&lt;2</li>
-                  <li style="--swatch:#dd5d3e">2–&lt;3</li>
-                  <li style="--swatch:#ec8d59">3–&lt;4</li>
-                  <li style="--swatch:#f0b27e">4–&lt;6</li>
-                  <li style="--swatch:#e9cfab">≥6</li>
-                </ol>
-                <p id="livermore-scale-note">Lower error means a closer relative fit to the recorded audio. The colours are not probabilities.</p>
-              </div>
-            </div>
-            <p class="livermore-credit">Terrain from <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>. Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a>. <a href="./assets/livermore/archive-query.py">Archive query</a>.</p>
-          </figcaption>
-        </figure>
-        <aside class="livermore-result" aria-label="Livermore replay result">
-          <p class="livermore-outcome">No validated fix</p>
-          <p class="livermore-distance">321 <span>m</span></p>
-          <p>Distance from the top-ranked estimate to the recorder position reported by the study.</p>
-          <p>The study’s matching pair ranked <strong>1 of 17,101</strong>. One flyover passed just 1 of 4 held-out blocks. The residual checks also failed.</p>
-        </aside>
-      </div>
+          <p class="livermore-credit">Terrain from <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>. Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a>. <a href="./assets/livermore/archive-query.py">Archive query</a>.</p>
+        </figcaption>
+      </figure>
     </section>
-    <section class="chapter replay-results" aria-labelledby="livermore-results">
-      <h2 id="livermore-results">Replay results</h2>
-      <p>The map shows the best training fit at each of 121 sampled locations, 1 km apart. Zoom in to see the sampling grid. The solver refined its leading estimate separately.</p>
+    <section id="livermore-benchmark-notes" class="chapter replay-results" aria-labelledby="livermore-results">
+      <h2 id="livermore-results">Livermore benchmark notes</h2>
+      <p>The study’s matching pair ranked first of 17,101. One flyover passed 1 of 4 held-out blocks, and the residual checks also failed. The solver returned no location.</p>
       <table class="replay-table">
         <thead><tr><th scope="col">Replay</th><th scope="col">Pair rank</th><th scope="col">Held-out audio blocks passed</th></tr></thead>
         <tbody>
@@ -90,10 +99,11 @@
           <tr><th scope="row">Wrong UTC day</th><td>Absent from 9,252</td><td>2/3 and 1/4</td></tr>
         </tbody>
       </table>
-      <p>All three replays abstained. The reported recorder position was used after ranking to measure the diagnostic gap. Its independent survey uncertainty is unknown.</p>
+      <p>All three replays abstained. After ranking, the leading estimate was about 321 m from the study’s published recorder position. This distance is a diagnostic comparison. The independent survey uncertainty of that reference is unknown.</p>
       <details class="replay-details">
         <summary>Data and reproducibility</summary>
         <p>The replay used two public research recordings and one UTC day of historical tracks. The <a href="./assets/livermore/replay-method.md">replay method</a>, <a href="./assets/livermore/archive-query.py">archive query</a> and <a href="./assets/livermore/overlay-metadata.json">original overlay metadata</a> record the inputs, score bins and solver revisions. The archive query checks input counts and digests. Reproducing the ranking and the 321 m estimate requires pinned solver revisions that are unavailable through the current public links. This map keeps the same bins and changes their colour and opacity.</p>
+        <p>The <a href="./assets/livermore/study-reference.geojson">study reference overlay</a> uses the observer coordinates published in the study’s results table and points from the matching KML files. The solver’s fitted point and scored track geometries are unavailable in the public replay bundle.</p>
         <p>Research audio by <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak, <cite>Aeroplane data full analysis and raw files</cite>, v2</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
       </details>
     </section>

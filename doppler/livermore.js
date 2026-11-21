@@ -9,6 +9,8 @@
   const zoomOut = byId('out');
   const scoreButton = byId('scores');
   const scoreLegend = byId('score-legend');
+  const studyButton = byId('study');
+  const studyLegend = byId('study-legend');
   const assetPath = './assets/livermore/';
   const scoreAsset = 'livermore-adsblol-coarse-fit-v2.png';
 
@@ -42,6 +44,31 @@
       L.polyline([west, east], style).addTo(mesh);
     }
     return mesh;
+  }
+
+  function createStudyLayer(L, references) {
+    const validPosition = position => Array.isArray(position) && position.length === 2 &&
+      position.every(Number.isFinite) && Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90;
+    const features = references.features;
+    const validTrack = (feature, excerpt) => feature?.properties?.excerpt === excerpt &&
+      feature.geometry?.type === 'LineString' && Array.isArray(feature.geometry.coordinates) &&
+      feature.geometry.coordinates.length >= 2 && feature.geometry.coordinates.every(validPosition);
+    if (references.type !== 'FeatureCollection' || features?.length !== 3 ||
+        !validTrack(features[0], 1) || !validTrack(features[1], 2) ||
+        features[2]?.properties?.kind !== 'observer' || features[2]?.geometry?.type !== 'Point' ||
+        !validPosition(features[2].geometry.coordinates)) throw new Error('Unexpected study geometry');
+
+    const tracks = [{ color: '#4275b4' }, { color: '#873a9d', dashArray: '7 5' }];
+    return L.geoJSON(references, {
+      pane: 'livermore-study',
+      interactive: false,
+      style: feature => feature.geometry.type === 'LineString'
+        ? { ...tracks[feature.properties.excerpt - 1], className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0 }
+        : { className: 'livermore-study-observer', color: '#182a21', fillColor: '#fff8d6', weight: 2, fillOpacity: 1 },
+      pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
+        pane: 'livermore-study', interactive: false, radius: 6,
+      }),
+    });
   }
 
   async function createMap() {
@@ -97,9 +124,11 @@
 
     const failedTiles = new Set();
     let scoreUnavailable = false;
+    let studyUnavailable = false;
     const report = () => showStatus([
       failedTiles.size ? 'Some terrain tiles could not load. The search boundary is still visible.' : '',
       scoreUnavailable ? 'Saved fit scores could not load.' : '',
+      studyUnavailable ? 'Study references could not load.' : '',
     ].filter(Boolean).join(' '));
 
     L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
@@ -114,7 +143,7 @@
       tileunload(event) { if (failedTiles.delete(event.tile)) report(); },
     }).addTo(map);
 
-    for (const [paneName, order] of [['livermore-mesh', 430], ['livermore-boundary', 450]]) {
+    for (const [paneName, order] of [['livermore-mesh', 430], ['livermore-boundary', 450], ['livermore-study', 465]]) {
       const pane = map.createPane(paneName);
       pane.style.zIndex = order;
       pane.style.pointerEvents = 'none';
@@ -154,6 +183,32 @@
       scoreButton.setAttribute('aria-pressed', String(show));
       scoreLegend.hidden = !show;
       updateMapControls();
+    });
+    let studyLayer;
+    let studyLoading = false;
+    studyButton.addEventListener('click', async () => {
+      if (studyLoading) return;
+      if (!studyLayer) {
+        studyLoading = true;
+        studyUnavailable = false;
+        report();
+        studyButton.setAttribute('aria-busy', 'true');
+        try {
+          studyLayer = createStudyLayer(L, await readJSON('study-reference.geojson'));
+        } catch {
+          studyUnavailable = true;
+          report();
+          return;
+        } finally {
+          studyLoading = false;
+          studyButton.removeAttribute('aria-busy');
+        }
+      }
+      const show = !map.hasLayer(studyLayer);
+      if (show) studyLayer.addTo(map);
+      else studyLayer.remove();
+      studyButton.setAttribute('aria-pressed', String(show));
+      studyLegend.hidden = !show;
     });
     map.on('zoomend', updateMapControls);
     updateMapControls();
