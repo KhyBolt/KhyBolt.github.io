@@ -359,6 +359,7 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   list-style: disc;
   white-space: pre-wrap;
 }
+ol.ask-answer-list { list-style-type: decimal; }
 .ask-turn > p + .ask-answer-list,
 .ask-turn > .ask-answer-list + p { margin-block-start: .45em; }
 .ask-answer-list > li + li { margin-block-start: .2em; }

@@ -33,6 +33,7 @@ export const MAX_CHAT_PARAGRAPHS = 24;
 export const MAX_CHAT_ANSWER_BYTES = 8192;
 export const MAX_CHAT_TURNS = 2;
 export const MAX_CHAT_HISTORY_BYTES = 3000;
+export const MAX_ASK_BODY_BYTES = 4096;
 
 const privateText = /(?:[\w.+%-]+@[\w.-]+\.[a-z]{2,}|\b(?:https?:\/\/|www\.)|(?:^|[^a-z\d])\+?\d(?:[(). -]*\d){8,}(?!\d)|\b(?:api[-_ ]?key|bearer|password|secret|token)\s*[:=]|\b[a-z0-9_-]{32,}\b|<\||\|>|<\\?\/?(?:start|end)_of_turn>)/iu;
 
@@ -51,42 +52,45 @@ export function isChatAnswer(paragraphs) {
 
 const fitsHistoryBudget = value => encoder.encode(JSON.stringify(value)).byteLength <= MAX_CHAT_HISTORY_BYTES;
 
+function clipHistoryParagraph(characters, width) {
+  if (characters.length <= width) return characters.join("");
+  const head = Math.ceil((width - 3) / 2);
+  const tail = width - 3 - head;
+  return characters.slice(0, head).join("").trimEnd() + " … " +
+    characters.slice(-tail).join("").trimStart();
+}
+
 export function boundChatHistory(turns, fits = fitsHistoryBudget) {
   const recent = turns.slice(-MAX_CHAT_TURNS);
   if (!recent.length || fits(recent)) return recent;
 
-  const latest = recent.at(-1);
-  if (fits([latest])) return [latest];
-
-  const { question } = latest;
-  const answer = [];
-  for (const paragraph of latest.answer) {
-    const fitsNext = text => fits([{ question, answer: [...answer, text] }]);
-    if (fitsNext(paragraph)) {
-      answer.push(paragraph);
-      continue;
-    }
-
-    const characters = Array.from(paragraph);
-    let low = 1;
-    let high = characters.length - 1;
-    let excerpt;
+  // Keep both sides of long paragraphs and give each recent exchange room.
+  const prepared = recent.map(({ question, answer }) => ({
+    question,
+    answer: answer.map(paragraph => Array.from(paragraph))
+  }));
+  for (let first = 0; first < prepared.length; first++) {
+    const selected = prepared.slice(first);
+    let low = 8;
+    let high = Math.max(...selected.flatMap(turn => turn.answer.map(paragraph => paragraph.length)));
+    let best = [];
     while (low <= high) {
-      const length = Math.floor((low + high) / 2);
-      const text = characters.slice(0, length).join("").trimEnd() + "…";
-      if (fitsNext(text)) {
-        excerpt = text;
-        low = length + 1;
+      const width = Math.floor((low + high) / 2);
+      const candidate = selected.map(({ question, answer }) => ({
+        question,
+        answer: answer.map(paragraph => clipHistoryParagraph(paragraph, width))
+      }));
+      if (candidate.every(turn => isChatAnswer(turn.answer)) && fits(candidate)) {
+        best = candidate;
+        low = width + 1;
       } else {
-        high = length - 1;
+        high = width - 1;
       }
     }
-    if (excerpt && isChatParagraph(excerpt)) answer.push(excerpt);
-    break;
+    if (best.length) return best;
   }
-  return answer.length ? [{ question, answer }] : [];
+  return [];
 }
-
 
 export const portfolioLinks = Object.freeze({
   resume: Object.freeze({ label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" }),

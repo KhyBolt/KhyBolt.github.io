@@ -3,7 +3,8 @@ import {
   isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
   MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
   boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
-} from "./ask-protocol.mjs?v=career-chat4";
+  MAX_ASK_BODY_BYTES, MAX_CHAT_HISTORY_BYTES, MAX_CHAT_TURNS,
+} from "./ask-protocol.mjs?v=career-chat5";
 import { normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
@@ -76,12 +77,18 @@ function profileReply(data) {
 }
 
 export function createClientTransport(url, fetcher = globalThis.fetch) {
+  const encoder = new TextEncoder();
   return async (question, signal, history = []) => {
+    const bodyFor = recent => JSON.stringify({ question, topic: "", history: recent });
+    const recent = boundChatHistory(history, turns =>
+      encoder.encode(JSON.stringify(turns)).byteLength <= MAX_CHAT_HISTORY_BYTES &&
+      encoder.encode(bodyFor(turns)).byteLength <= MAX_ASK_BODY_BYTES
+    );
     try {
       const response = await fetcher(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, topic: "", history }),
+        body: bodyFor(recent),
         signal: AbortSignal.any([signal, AbortSignal.timeout(36000)]),
         credentials: "omit",
         cache: "no-store",
@@ -92,12 +99,16 @@ export function createClientTransport(url, fetcher = globalThis.fetch) {
         const data = json ? await response.json().catch(() => null) : null;
         return { status: "rate-limited", limit: data?.limit, retryAfter: Number(response.headers.get("Retry-After")) };
       }
-      if (!response.ok || !json) return null;
+      if (!json) return null;
       const data = await response.json();
-      if (data?.status === "unknown") return { status: "unknown" };
+      if (response.status === 502 && data?.status === "fallback" && data.reason === "truncated") {
+        return { status: "truncated" };
+      }
+      if (!response.ok) return null;
+      if (data?.status === "unknown") return { status: "unknown", reason: data.reason };
       if (data?.status !== "answer") return null;
       if (isChatAnswer(data.paragraphs)) {
-        return { status: "answer", paragraphs: data.paragraphs, links: answerLinks(data.links) };
+        return { status: "answer", paragraphs: data.paragraphs, links: answerLinks(data.links), filtered: data.filtered === true };
       }
       return profileReply(data);
     } catch {
@@ -135,6 +146,18 @@ function quotaMessage({ limit, retryAfter }) {
 }
 const unsupported = {
   text: "I don’t have enough public information to answer that.",
+  links: [],
+};
+const filteredAnswer = {
+  text: "I couldn’t display the generated answer. Try asking about one part of the question.",
+  links: [],
+};
+const truncatedAnswer = {
+  text: "The answer reached its length limit. Try asking about one part at a time.",
+  links: [],
+};
+const unshareableQuestion = {
+  text: "Please remove links or sensitive details from your question and try again.",
   links: [],
 };
 const projectShortcut = /^(?:open|show|view)(?: me)? (?:the )?projects[?.!]*$/u;
@@ -266,9 +289,9 @@ function appendParagraph(turn, text) {
   turn.append(paragraph);
 }
 
-const bulletLine = /^ {0,3}[*+-][ \t]+(\S[^\r\n]*)\r?$/u;
+const listLine = /^ {0,3}(?:([*+•-])|(\d{1,3})[.)])[ \t]+(\S[^\r\n]*)\r?$/u;
 const thematicBreak = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,})\r?$/u;
-const fenceLine = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?$/u;
+const fenceLine = /^ {0,3}(\x60{3,}|~{3,})([^\r\n]*)\r?$/u;
 
 function appendAnswerText(turn, text) {
   let prose = [];
@@ -281,8 +304,8 @@ function appendAnswerText(turn, text) {
       else if (delimiter[1].startsWith(fence) && !delimiter[2].trim()) fence = null;
     }
 
-    const bullet = !fence && !thematicBreak.test(line) && bulletLine.exec(line);
-    if (!bullet) {
+    const marker = !fence && !thematicBreak.test(line) && listLine.exec(line);
+    if (!marker) {
       if (list && !line.trim()) continue;
       list = null;
       prose.push(line);
@@ -294,19 +317,22 @@ function appendAnswerText(turn, text) {
       if (paragraph) appendParagraph(turn, paragraph);
       prose = [];
     }
-    if (!list) {
-      list = document.createElement("ul");
+    const tag = marker[2] === undefined ? "ul" : "ol";
+    if (!list || list.localName !== tag) {
+      list = document.createElement(tag);
       list.className = "ask-answer-list";
+      if (tag === "ol") list.start = Number(marker[2]);
       turn.append(list);
     }
     const item = document.createElement("li");
-    item.textContent = bullet[1];
+    if (tag === "ol") item.value = Number(marker[2]);
+    item.textContent = marker[3];
     list.append(item);
   }
   if (prose.length) appendParagraph(turn, prose.join("\n"));
 }
 
-function appendTurn(author, text, { links = [], delay = 0 } = {}) {
+function appendTurn(author, text, { links = [], notice, delay = 0 } = {}) {
   const visitor = author === "You";
   const follow = visitor || nearEnd();
   const turn = document.createElement("li");
@@ -317,6 +343,7 @@ function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   turn.append(speaker);
   if (visitor) appendParagraph(turn, text);
   else appendAnswerText(turn, text);
+  if (notice) appendParagraph(turn, notice);
   if (links.length) appendAnswerLinks(turn, links);
   log.append(turn);
   following = follow;
@@ -355,7 +382,7 @@ function clearPendingAnswer() {
 }
 
 function rememberReply(question, answer) {
-  history = boundChatHistory([...history, { question, answer }]);
+  history = [...history, { question, answer }].slice(-MAX_CHAT_TURNS);
 }
 
 async function submitQuestion() {
@@ -386,9 +413,11 @@ async function submitQuestion() {
     let answer = unsupported;
     if (projectShortcut.test(normalizeQuestion(question))) {
       answer = { text: "Open the featured projects.", links: [sources.projects] };
-    } else if (!remote && isShareableChatText(question)) {
+    } else if (!isShareableChatText(question)) {
+      answer = unshareableQuestion;
+    } else if (!remote) {
       answer = serviceFallback;
-    } else if (remote && !ask.inert && isShareableChatText(question)) {
+    } else if (!ask.inert) {
       activeRequest = new AbortController();
       showPendingAnswer();
       const result = await remote(question, activeRequest.signal, history);
@@ -398,17 +427,23 @@ async function submitQuestion() {
           ? result.sections.map(parts => parts.map(part => part.text).join(" "))
           : result.facts.map(fact => fact.text));
         if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
-        answer = { text: paragraphs.join("\n\n"), links: result.links };
+        answer = {
+          text: paragraphs.join("\n\n"),
+          links: result.links,
+          notice: result.filtered ? "Some parts of the generated answer could not be displayed." : undefined,
+        };
         if (isChatAnswer(paragraphs)) rememberReply(question, paragraphs);
       } else if (result?.status === "rate-limited") {
         answer = { text: quotaMessage(result) };
+      } else if (result?.status === "truncated") {
+        answer = truncatedAnswer;
       } else if (result?.status === "unknown") {
-        rememberReply(question, [unsupported.text]);
+        answer = result.reason === "filtered" ? filteredAnswer : unsupported;
       } else {
         answer = serviceFallback;
       }
     }
-    appendTurn("Portfolio assistant", answer.text, { links: answer.links, delay: first ? 150 : 54 });
+    appendTurn("Portfolio assistant", answer.text, { links: answer.links, notice: answer.notice, delay: first ? 150 : 54 });
   } finally {
     clearPendingAnswer();
     activeRequest = undefined;
