@@ -10,7 +10,9 @@
   const scoreLegend = byId('score-legend');
   const studyLegend = byId('study-legend');
   const assetPath = './assets/livermore/';
-  const scoreAsset = 'livermore-adsblol-coarse-fit-v2.png';
+  const detail = byId('detail');
+  const resolution = byId('resolution');
+  const scoreBands = [[15, '#691019'], [20, '#b82e32'], [35, '#dd5d3e'], [100, '#ec8d59'], [500, '#f0b27e'], [Infinity, '#e9cfab']];
   const studyTracks = [
     { identifier: 'N9393T', anchor: 2, color: '#4275b4' },
     { identifier: 'N86LP', anchor: 9, color: '#873a9d', dashArray: '7 5', labelLeft: true },
@@ -27,25 +29,25 @@
     return response.json();
   }
 
-  function createMesh(L, projection, perimeter, segments) {
-    // Each side has the same 1 km samples. Join the half-cell boundaries
-    // from opposite edges in the map projection, including half-width edge cells.
-    const edgeMidpoint = (segment, direction) => {
-      const a = projection.project(L.latLng(perimeter[segment][1], perimeter[segment][0]));
-      const b = projection.project(L.latLng(perimeter[segment + direction][1], perimeter[segment + direction][0]));
-      return projection.unproject(a.add(b).divideBy(2));
-    };
-    const mesh = L.layerGroup();
-    const style = { color: '#262728', weight: 1, opacity: .38, interactive: false, pane: 'livermore-mesh' };
-    for (let i = 0; i < segments; i++) {
-      const south = edgeMidpoint(i, 1);
-      const north = edgeMidpoint(3 * segments - i, -1);
-      const west = edgeMidpoint(4 * segments - i, -1);
-      const east = edgeMidpoint(segments + i, 1);
-      L.polyline([south, north], style).addTo(mesh);
-      L.polyline([west, east], style).addTo(mesh);
-    }
-    return mesh;
+  function createScoreLayer(L, stage, scoreIndex, ringIndex) {
+    const features = stage.rows.map(row => {
+      if (!Number.isFinite(row[scoreIndex]) || row[ringIndex]?.length !== 5) throw new Error('Unexpected score cell');
+      return { type: 'Feature', properties: { score: row[scoreIndex] },
+        geometry: { type: 'Polygon', coordinates: [row[ringIndex]] } };
+    });
+    return L.geoJSON({ type: 'FeatureCollection', features }, {
+      pane: 'livermore-score-' + stage.spacing_m,
+      interactive: false,
+      style: cell => ({
+        color: '#26190e',
+        weight: stage.spacing_m === 25 ? .85 : 1,
+        opacity: .55,
+        fillColor: scoreBands.find(([limit]) => cell.properties.score < limit)[1],
+        fillOpacity: .76,
+        smoothFactor: 0,
+        className: 'livermore-grid-cell',
+      }),
+    });
   }
 
   function studyLabel(L, coordinates, track) {
@@ -81,58 +83,52 @@
     });
   }
 
-  function createStudyLayer(L, references) {
-    const validPosition = position => Array.isArray(position) && position.length === 2 &&
-      position.every(Number.isFinite) && Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90;
-    const features = references?.features;
-    const validTrack = (feature, excerpt) => {
-      const track = studyTracks[excerpt - 1];
-      return feature?.properties?.excerpt === excerpt &&
-        feature.properties.track_file === track.identifier + '-track-EGM96.kml' &&
-        feature.geometry?.type === 'LineString' && Array.isArray(feature.geometry.coordinates) &&
-        feature.geometry.coordinates.length > track.anchor + 1 && feature.geometry.coordinates.every(validPosition);
-    };
-    if (references?.type !== 'FeatureCollection' || features?.length !== 3 ||
-        !validTrack(features[0], 1) || !validTrack(features[1], 2) ||
-        features[2]?.properties?.kind !== 'observer' || features[2]?.geometry?.type !== 'Point' ||
-        !validPosition(features[2].geometry.coordinates)) throw new Error('Unexpected study geometry');
-
-    const geometry = L.geoJSON(references, {
+  function createStudyLayer(L, tracks) {
+    const geometry = L.geoJSON(tracks, {
       pane: 'livermore-study',
       interactive: false,
-      style: feature => feature.geometry.type === 'LineString'
-        ? { ...studyTracks[feature.properties.excerpt - 1], className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0 }
-        : { className: 'livermore-study-observer', color: '#252829', fillColor: '#fff8d6', weight: 2, fillOpacity: 1 },
-      pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
-        pane: 'livermore-study', interactive: false, radius: 6,
+      style: feature => ({
+        ...studyTracks.find(track => feature.properties.id.startsWith(track.identifier + '-')),
+        className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0,
       }),
     });
-    return L.layerGroup([geometry, ...studyTracks.map((track, i) => studyLabel(L, features[i].geometry.coordinates, track))]);
+    const labels = studyTracks.map(track => {
+      const coordinates = tracks.features.find(feature => feature.properties.id.startsWith(track.identifier + '-'))?.geometry?.coordinates;
+      if (!coordinates || coordinates.length <= track.anchor + 1) throw new Error('Missing study path');
+      return studyLabel(L, coordinates, track);
+    });
+    return L.layerGroup([geometry, ...labels]);
+  }
+
+  function pointLayer(L, feature, kind, label) {
+    const coordinates = feature?.geometry?.coordinates;
+    if (coordinates?.length !== 2 || !coordinates.every(Number.isFinite)) throw new Error('Missing point');
+    const element = document.createElement('span');
+    element.className = 'livermore-point livermore-point-' + kind;
+    element.setAttribute('aria-hidden', 'true');
+    return L.marker([coordinates[1], coordinates[0]], {
+      pane: 'livermore-points',
+      keyboard: true,
+      title: label,
+      icon: L.divIcon({ html: element, className: 'livermore-point-marker', iconSize: [20, 20], iconAnchor: [10, 10] }),
+    }).bindTooltip(label, { direction: kind === 'estimate' ? 'right' : 'left' });
   }
 
   async function createMap() {
-    const studyData = readJSON('study-reference.geojson').catch(() => null);
-    const [footprint, overlay] = await Promise.all([
-      readJSON('search-boundary.json'),
-      readJSON('overlay-metadata.json'),
-    ]);
+    const data = await readJSON('livermore-assisted-real-audio-map-v1.json');
     const L = window.L;
-    const [columns, rows] = overlay.sampling.dimensions_nodes;
-    const perimeter = footprint.coordinates?.[0];
-    const segments = columns - 1;
-    if (overlay.image_crs !== 'EPSG:3857' || footprint.type !== 'Polygon' || columns !== rows ||
-        segments !== 10 || overlay.sampling.coarse_node_spacing_m !== 1000 ||
-        perimeter?.length !== 4 * segments + 1) throw new Error('Unexpected replay geometry');
-
+    const stages = data.score_grid.stages;
+    const columns = data.score_grid.cell_row_columns;
+    const scoreIndex = columns.indexOf('training_mse_hz2');
+    const ringIndex = columns.indexOf('closed_wgs84_lon_lat_ring');
+    if (data.schema !== 'livermore-assisted-real-audio-map/v1' || data.reference_used_in_fit !== false ||
+        data.markers.model_best_fit.properties.verified !== false ||
+        scoreIndex < 0 || ringIndex < 0 || stages.map(stage => stage.spacing_m).join() !== '1000,100,25' ||
+        stages.map(stage => stage.rows.length).join() !== '121,441,441') throw new Error('Unexpected example data');
     const projection = L.CRS.EPSG3857;
-    const [west, south, east, north] = overlay.bounds_3857;
-    const imageBounds = L.latLngBounds(
-      projection.unproject(L.point(west, south)),
-      projection.unproject(L.point(east, north)),
-    );
     const outlineOptions = { pane: 'livermore-boundary', interactive: false, style: { fill: false, smoothFactor: 0 } };
-    const outline = L.geoJSON(footprint, { ...outlineOptions,
-      style: { ...outlineOptions.style, color: '#f4f4f4', weight: 1.8 },
+    const outline = L.geoJSON(data.search_boundary, {
+      ...outlineOptions, style: { ...outlineOptions.style, color: '#f4f4f4', weight: 1.8 },
     });
     const searchBounds = outline.getBounds();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -146,7 +142,7 @@
       attributionControl: false,
       scrollWheelZoom: false,
       minZoom: 8,
-      maxZoom: 16,
+      maxZoom: 18,
       maxBounds: searchBounds.pad(1),
       maxBoundsViscosity: 1,
       zoomSnap: .25,
@@ -163,16 +159,9 @@
     L.control.scale({ imperial: false, maxWidth: 86 }).addTo(map);
 
     const failedTiles = new Set();
-    let scoreUnavailable = false;
-    let studyUnavailable = false;
-    const report = () => showStatus([
-      failedTiles.size ? 'Some terrain tiles could not load. The search boundary is still visible.' : '',
-      scoreUnavailable ? 'Saved fit scores could not load.' : '',
-      studyUnavailable ? 'Study references could not load.' : '',
-    ].filter(Boolean).join(' '));
-
+    const report = () => showStatus(failedTiles.size ? 'Some terrain tiles could not load. The search cells and flight paths are still shown.' : '');
     L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
+      maxZoom: 18,
       maxNativeZoom: 15,
       noWrap: true,
       keepBuffer: 1,
@@ -183,32 +172,41 @@
       tileunload(event) { if (failedTiles.delete(event.tile)) report(); },
     }).addTo(map);
 
-    for (const [paneName, order] of [['livermore-mesh', 430], ['livermore-boundary', 450], ['livermore-study', 465]]) {
+    for (const [paneName, order] of [
+      ['livermore-score-1000', 410], ['livermore-score-100', 420], ['livermore-score-25', 430],
+      ['livermore-boundary', 450], ['livermore-study', 465], ['livermore-points', 480],
+    ]) {
       const pane = map.createPane(paneName);
       pane.style.zIndex = order;
-      pane.style.pointerEvents = 'none';
+      if (paneName !== 'livermore-points') pane.style.pointerEvents = 'none';
     }
-    const mesh = createMesh(L, projection, perimeter, segments);
-    const scores = L.imageOverlay(assetPath + scoreAsset, imageBounds, { interactive: false, alt: '' });
+    const layers = stages.map(stage => createScoreLayer(L, stage, scoreIndex, ringIndex));
+    layers[0].addTo(map);
     const updateMapControls = () => {
-      zoomIn.disabled = map.getZoom() >= map.getMaxZoom();
-      zoomOut.disabled = map.getZoom() <= map.getMinZoom();
-      const meshVisible = map.getZoom() >= 13 && map.hasLayer(scores) && !scoreUnavailable;
-      if (meshVisible && !map.hasLayer(mesh)) mesh.addTo(map);
-      else if (!meshVisible && map.hasLayer(mesh)) mesh.remove();
+      const zoom = map.getZoom();
+      zoomIn.disabled = zoom >= map.getMaxZoom();
+      zoomOut.disabled = zoom <= map.getMinZoom();
+      for (const [i, threshold] of [[1, 13], [2, 15.5]]) {
+        if (zoom >= threshold && !map.hasLayer(layers[i])) layers[i].addTo(map);
+        if (zoom < threshold && map.hasLayer(layers[i])) layers[i].remove();
+      }
+      const highest = zoom >= 15.5 ? '25 m' : zoom >= 13 ? '100 m' : '1 km';
+      const label = 'Finest grid shown: ' + highest;
+      if (resolution.textContent !== label) resolution.textContent = label;
     };
-    scores.on('error', () => {
-      scoreUnavailable = true;
-      scores.remove();
-      scoreLegend.hidden = true;
-      updateMapControls();
-      report();
-    }).addTo(map);
-    L.geoJSON(footprint, { ...outlineOptions,
-      style: { ...outlineOptions.style, color: '#252829', weight: 5 },
+    L.geoJSON(data.search_boundary, {
+      ...outlineOptions, style: { ...outlineOptions.style, color: '#252829', weight: 5 },
     }).addTo(map);
     outline.addTo(map);
+    createStudyLayer(L, data.study_flight_paths).addTo(map);
+    const reference = pointLayer(L, data.markers.published_recorder, 'reference', 'Published phone location').addTo(map);
+    const estimate = pointLayer(L, data.markers.model_best_fit, 'estimate', 'Best-fit estimate (unverified)').addTo(map);
+    studyLegend.hidden = false;
 
+    detail.addEventListener('click', () => {
+      const points = L.latLngBounds([reference.getLatLng(), estimate.getLatLng()]);
+      map.setView(points.getCenter(), 16, { animate: false });
+    });
     zoomIn.addEventListener('click', () => map.zoomIn());
     zoomOut.addEventListener('click', () => map.zoomOut());
     fit.addEventListener('click', fitSearch);
@@ -216,19 +214,14 @@
     surface.addEventListener('blur', () => map.scrollWheelZoom.disable());
     map.on('zoomend', updateMapControls);
     updateMapControls();
-    try {
-      createStudyLayer(L, await studyData).addTo(map);
-      studyLegend.hidden = false;
-    } catch {
-      studyUnavailable = true;
-      report();
-    }
   }
 
   createMap().catch(() => {
     surface.hidden = true;
     tools.hidden = true;
     fallback.hidden = false;
-    showStatus('The interactive map could not load. The saved score layer is shown.');
+    scoreLegend.hidden = true;
+    showStatus('The map could not load. Try refreshing the page.');
   });
 })();
+

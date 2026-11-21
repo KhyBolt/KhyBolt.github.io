@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0d0f11">
-  <meta name="description" content="Explore the Livermore aircraft audio geolocation replay, the measured fit scores and the validation results.">
+  <meta name="description" content="Aircraft geolocation from the pitch of passing aircraft, with a real-audio example from Livermore.">
   <title>Aircraft Geolocation with Audio | Khy Bolt</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
   <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="./livermore.css?v=editorial3">
+  <link rel="stylesheet" href="./livermore.css?v=livermore-example1">
   <script src="./assets/leaflet/leaflet.js" defer></script>
-  <script src="./livermore.js?v=editorial3" defer></script>
+  <script src="./livermore.js?v=livermore-example1" defer></script>
 </head>
 <body>
   <a class="skip" href="#livermore">Skip to the Livermore map</a>
@@ -21,23 +21,26 @@
   <main class="shell">
     <div class="hero doppler-intro">
       <h1>Aircraft Geolocation with Audio</h1>
-      <p>I built this to see if the sound of passing aircraft could help locate a recording. Given a rough time, a search area, and two audible flyovers, it compares pitch changes with archived flight tracks and ranks possible recording locations.</p>
+      <p>I built this to figure out where an audio or video clip was recorded. If it captures two audible aircraft flyovers, the tool compares how their pitch changes with historical flight tracks to estimate where the recorder was.</p>
+      <p class="doppler-inspiration"><a href="https://www.youtube.com/watch?v=UytYrhYLOKI">Colsto’s YouTube video</a> gave me the idea. This is my own implementation.</p>
     </div>
     <section id="livermore" class="livermore-section" aria-labelledby="livermore-title">
       <div class="livermore-heading">
-        <h2 id="livermore-title">Livermore search heatmap</h2>
+        <h2 id="livermore-title">Livermore example case</h2>
         <p>California · <time datetime="2026-05-17">17 May 2026</time></p>
       </div>
+      <p class="livermore-example-copy">For this run, I used two pitch traces and their matching flight tracks from a published study. The best fit was 144 m from the published phone location. It’s an estimate, not a confirmed fix.</p>
       <figure class="livermore-figure" aria-labelledby="livermore-title">
         <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Map controls" hidden>
           <button id="livermore-in" class="livermore-zoom" type="button" aria-label="Zoom in">+</button>
           <button id="livermore-out" class="livermore-zoom" type="button" aria-label="Zoom out">−</button>
           <button id="livermore-fit" type="button">Fit area</button>
+          <button id="livermore-detail" type="button">Show 25 m grid</button>
         </div>
         <div class="livermore-surface">
           <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help livermore-scale-note" tabindex="0" hidden></div>
           <div class="livermore-fallback" id="livermore-fallback">
-            <img src="./assets/livermore/livermore-adsblol-coarse-fit-v2.png" width="768" height="768" alt="Saved fit scores across the 10 by 10 kilometre search square. Dark red shows the closest fit.">
+            <p>The interactive map is unavailable.</p>
           </div>
         </div>
         <p class="sr-only" id="livermore-help">Drag to pan or pinch to zoom. With the map focused, use the mouse wheel, arrow keys and plus or minus.</p>
@@ -46,54 +49,45 @@
           <div class="livermore-legend">
             <div class="livermore-map-keys">
               <p class="livermore-key">10 × 10 km search area</p>
-              <ul class="livermore-study-legend" id="livermore-study-legend" aria-label="Published study references" hidden>
+              <ul class="livermore-study-legend" id="livermore-study-legend" aria-label="Flight paths and recording locations" hidden>
                 <li class="study-first-key">N9393T</li>
                 <li class="study-second-key">N86LP</li>
-                <li class="study-observer-key">Published recorder position</li>
+                <li class="study-observer-key">Published phone location</li>
+                <li class="study-estimate-key">Best-fit estimate</li>
               </ul>
             </div>
             <div class="livermore-score-legend" id="livermore-score-legend">
-              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Coarse pitch error (Hz²)</span><strong>Weaker fit</strong></div>
-              <ol class="livermore-bands" aria-label="Training pitch error by colour, in squared hertz">
-                <li style="--swatch:#691019">&lt;1</li>
-                <li style="--swatch:#b82e32">1–&lt;2</li>
-                <li style="--swatch:#dd5d3e">2–&lt;3</li>
-                <li style="--swatch:#ec8d59">3–&lt;4</li>
-                <li style="--swatch:#f0b27e">4–&lt;6</li>
-                <li style="--swatch:#e9cfab">≥6</li>
+              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Pitch error (Hz²)</span><strong>Weaker fit</strong></div>
+              <ol class="livermore-bands" aria-label="Squared pitch error by colour">
+                <li style="--swatch:#691019">&lt;15</li>
+                <li style="--swatch:#b82e32">&lt;20</li>
+                <li style="--swatch:#dd5d3e">&lt;35</li>
+                <li style="--swatch:#ec8d59">&lt;100</li>
+                <li style="--swatch:#f0b27e">&lt;500</li>
+                <li style="--swatch:#e9cfab">≥500</li>
               </ol>
-              <p id="livermore-scale-note">Relative fit across 121 samples, 1 km apart. These scores are not probabilities.</p>
+              <p id="livermore-scale-note">Zoom in to see the 100 m and 25 m cells near the best fit.</p>
+              <p id="livermore-resolution" role="status"></p>
             </div>
           </div>
-          <p class="livermore-credit">Displayed tracks and recorder reference from <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak’s study data</a>, v2, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Terrain from the <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>.</p>
-          <p class="livermore-credit">Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a>.</p>
+          <p class="livermore-credit">Terrain: <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>.</p>
         </figcaption>
       </figure>
-      <nav class="livermore-links" aria-label="More about the replay">
-        <a href="#livermore-benchmark-notes">Benchmark notes</a>
-        <a href="./field/">Field benchmark</a>
-        <a href="https://github.com/KhyBolt/aircraft-doppler">Source repository</a>
+      <section class="livermore-audio" aria-labelledby="livermore-audio-title">
+        <h3 id="livermore-audio-title">Hear the flyovers</h3>
+        <p>Two separate phone recordings from the same spot in Livermore, released with <a href="https://arxiv.org/html/2611.12033v1">Praveen Pathak and colleagues’ study</a>.</p>
+        <div class="livermore-audio-grid">
+          <div class="livermore-audio-item">N9393T <audio aria-label="N9393T flyover recording" controls preload="none" src="./assets/livermore/N9393T.mp3"></audio></div>
+          <div class="livermore-audio-item">N86LP <audio aria-label="N86LP flyover recording" controls preload="none" src="./assets/livermore/N86LP.mp3"></audio></div>
+        </div>
+        <p class="livermore-credit">MP3 playback copies from <a href="https://doi.org/10.5281/zenodo.24075029">Pathak’s study data</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>). <a href="https://zenodo.org/api/records/24075029/files/raw_flight_data.zip/content">Download the original WAVs (ZIP)</a>.</p>
+      </section>
+      <nav class="livermore-links" aria-label="Project links">
+        <a href="https://github.com/KhyBolt/aircraft-doppler">Source code</a>
       </nav>
-    </section>
-    <section id="livermore-benchmark-notes" class="chapter replay-results" aria-labelledby="livermore-results">
-      <h2 id="livermore-results">Benchmark notes</h2>
-      <p>The matching pair ranked first of 17,101. One flyover passed 1 of 4 held-out blocks and the residual checks failed, so the solver abstained. Its top estimate was about 321 m from the published recorder position, a diagnostic comparison made after ranking. The reference’s independent survey uncertainty is unknown.</p>
-      <details class="replay-details">
-        <summary>Control runs and data</summary>
-        <table class="replay-table">
-          <thead><tr><th scope="col">Replay</th><th scope="col">Pair rank</th><th scope="col">Held-out audio blocks passed</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">Original audio</th><td>1 / 17,101</td><td>3/3 and 1/4</td></tr>
-            <tr><th scope="row">Swapped audio order</th><td>1,230 / 17,170</td><td>1/4 and 2/3</td></tr>
-            <tr><th scope="row">Wrong UTC day</th><td>Absent from 9,252</td><td>2/3 and 1/4</td></tr>
-          </tbody>
-        </table>
-        <p>All three runs abstained.</p>
-        <p>The <a href="./assets/livermore/replay-method.md">replay method</a>, <a href="./assets/livermore/archive-query.py">archive query</a>, and <a href="./assets/livermore/overlay-metadata.json">score metadata</a> document the inputs and fit scores. The archived inputs can be checked against their digests. Repeating the search requires solver revisions that are unavailable through the public links.</p>
-        <p>The <a href="./assets/livermore/study-reference.geojson">study overlays</a> use the published recorder coordinates and matching KML samples during each recording. The public replay bundle contains no fitted point, scored track geometry, or finer grid scores.</p>
-      </details>
     </section>
   </main>
   <footer class="shell footer"><span>Khy Bolt</span><a href="../">Back to portfolio <span aria-hidden="true">↗</span></a></footer>
 </body>
 </html>
+

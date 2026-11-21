@@ -1,0 +1,7 @@
+Source: Praveen Pathak, Aeroplane data full analysis and raw files, version 2.
+Record: https://doi.org/10.5281/zenodo.24075029
+License: Creative Commons Attribution 4.0 International, https://creativecommons.org/licenses/by/4.0/
+These are full recordings, transcoded to 80 kb/s MP3 for playback without trimming or processing.
+N9393T: N9393T_R02_2026-05-17T22-03-02.336Z.wav
+N86LP: N86LP_R01_2026-05-17T22-20-09.578Z.wav
+Original WAVs: https://zenodo.org/api/records/24075029/files/raw_flight_data.zip/content
