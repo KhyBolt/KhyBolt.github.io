@@ -260,6 +260,52 @@ function appendAnswerLinks(turn, links) {
   turn.append(proof);
 }
 
+function appendParagraph(turn, text) {
+  const paragraph = document.createElement("p");
+  paragraph.textContent = text;
+  turn.append(paragraph);
+}
+
+const bulletLine = /^ {0,3}[*+-][ \t]+(\S[^\r\n]*)\r?$/u;
+const thematicBreak = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,})\r?$/u;
+const fenceLine = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?$/u;
+
+function appendAnswerText(turn, text) {
+  let prose = [];
+  let list = null;
+  let fence = null;
+  for (const line of text.split("\n")) {
+    const delimiter = fenceLine.exec(line);
+    if (delimiter) {
+      if (!fence) fence = delimiter[1];
+      else if (delimiter[1].startsWith(fence) && !delimiter[2].trim()) fence = null;
+    }
+
+    const bullet = !fence && !thematicBreak.test(line) && bulletLine.exec(line);
+    if (!bullet) {
+      if (list && !line.trim()) continue;
+      list = null;
+      prose.push(line);
+      continue;
+    }
+
+    if (prose.length) {
+      const paragraph = prose.join("\n").trimEnd();
+      if (paragraph) appendParagraph(turn, paragraph);
+      prose = [];
+    }
+    if (!list) {
+      list = document.createElement("ul");
+      list.className = "ask-answer-list";
+      turn.append(list);
+    }
+    const item = document.createElement("li");
+    item.textContent = bullet[1];
+    list.append(item);
+  }
+  if (prose.length) appendParagraph(turn, prose.join("\n"));
+}
+
 function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   const visitor = author === "You";
   const follow = visitor || nearEnd();
@@ -268,9 +314,9 @@ function appendTurn(author, text, { links = [], delay = 0 } = {}) {
   const speaker = document.createElement("span");
   speaker.className = "screen-reader";
   speaker.textContent = author + ": ";
-  const message = document.createElement("p");
-  message.textContent = text;
-  turn.append(speaker, message);
+  turn.append(speaker);
+  if (visitor) appendParagraph(turn, text);
+  else appendAnswerText(turn, text);
   if (links.length) appendAnswerLinks(turn, links);
   log.append(turn);
   following = follow;

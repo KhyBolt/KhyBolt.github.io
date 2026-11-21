@@ -353,6 +353,15 @@ body:has(#ask[data-conversation]:not([hidden], [inert])) .portfolio-shell { padd
   --ask-visitor-fill: rgb(226 233 229 / .70);
 }
 .ask-turn p { margin: 0; white-space: pre-wrap; }
+.ask-answer-list {
+  margin: 0;
+  padding-inline-start: 1.35em;
+  list-style: disc;
+  white-space: pre-wrap;
+}
+.ask-turn > p + .ask-answer-list,
+.ask-turn > .ask-answer-list + p { margin-block-start: .45em; }
+.ask-answer-list > li + li { margin-block-start: .2em; }
 .ask-proof {
   display: flex;
   flex-wrap: wrap;
