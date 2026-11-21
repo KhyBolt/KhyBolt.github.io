@@ -283,9 +283,10 @@ function appendAnswerLinks(turn, links) {
   turn.append(proof);
 }
 
-function appendParagraph(turn, text) {
+function appendParagraph(turn, text, bold = false) {
   const paragraph = document.createElement("p");
-  paragraph.textContent = text;
+  if (bold) appendInlineBold(paragraph, text);
+  else paragraph.textContent = text;
   turn.append(paragraph);
 }
 
@@ -293,16 +294,41 @@ const listLine = /^ {0,3}(?:([*+•-])|(\d{1,3})[.)])[ \t]+(\S[^\r\n]*)\r?$/u;
 const thematicBreak = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,})\r?$/u;
 const fenceLine = /^ {0,3}(\x60{3,}|~{3,})([^\r\n]*)\r?$/u;
 
+function advanceFence(fence, delimiter) {
+  if (!delimiter) return fence;
+  if (!fence) return delimiter[1];
+  return delimiter[1].startsWith(fence) && !delimiter[2].trim() ? null : fence;
+}
+
+function appendInlineBold(container, text) {
+  const pairedBold = /(?<![\\*])\*\*(?![\s*])((?:[^*\r\n]|\*(?!\*))+?)(?<![\s\\])\*\*(?!\*)/gu;
+  let cursor = 0;
+  let offset = 0;
+  let fence = null;
+  for (const line of text.split("\n")) {
+    const delimiter = fenceLine.exec(line);
+    if (!fence && !delimiter) {
+      for (const match of line.matchAll(pairedBold)) {
+        const start = offset + match.index;
+        if (start > cursor) container.append(document.createTextNode(text.slice(cursor, start)));
+        const strong = document.createElement("strong");
+        strong.append(document.createTextNode(match[1]));
+        container.append(strong);
+        cursor = start + match[0].length;
+      }
+    }
+    fence = advanceFence(fence, delimiter);
+    offset += line.length + 1;
+  }
+  if (cursor < text.length) container.append(document.createTextNode(text.slice(cursor)));
+}
+
 function appendAnswerText(turn, text) {
   let prose = [];
   let list = null;
   let fence = null;
   for (const line of text.split("\n")) {
-    const delimiter = fenceLine.exec(line);
-    if (delimiter) {
-      if (!fence) fence = delimiter[1];
-      else if (delimiter[1].startsWith(fence) && !delimiter[2].trim()) fence = null;
-    }
+    fence = advanceFence(fence, fenceLine.exec(line));
 
     const marker = !fence && !thematicBreak.test(line) && listLine.exec(line);
     if (!marker) {
@@ -314,7 +340,7 @@ function appendAnswerText(turn, text) {
 
     if (prose.length) {
       const paragraph = prose.join("\n").trimEnd();
-      if (paragraph) appendParagraph(turn, paragraph);
+      if (paragraph) appendParagraph(turn, paragraph, true);
       prose = [];
     }
     const tag = marker[2] === undefined ? "ul" : "ol";
@@ -326,10 +352,10 @@ function appendAnswerText(turn, text) {
     }
     const item = document.createElement("li");
     if (tag === "ol") item.value = Number(marker[2]);
-    item.textContent = marker[3];
+    appendInlineBold(item, marker[3]);
     list.append(item);
   }
-  if (prose.length) appendParagraph(turn, prose.join("\n"));
+  if (prose.length) appendParagraph(turn, prose.join("\n"), true);
 }
 
 function appendTurn(author, text, { links = [], notice, delay = 0 } = {}) {
