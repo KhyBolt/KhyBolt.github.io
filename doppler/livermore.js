@@ -7,12 +7,14 @@
   const fit = byId('fit');
   const zoomIn = byId('in');
   const zoomOut = byId('out');
-  const scoreButton = byId('scores');
   const scoreLegend = byId('score-legend');
-  const studyButton = byId('study');
   const studyLegend = byId('study-legend');
   const assetPath = './assets/livermore/';
   const scoreAsset = 'livermore-adsblol-coarse-fit-v2.png';
+  const studyTracks = [
+    { identifier: 'N9393T', anchor: 2, color: '#4275b4' },
+    { identifier: 'N86LP', anchor: 9, color: '#873a9d', dashArray: '7 5', labelLeft: true },
+  ];
 
   function showStatus(message) {
     status.textContent = message;
@@ -34,7 +36,7 @@
       return projection.unproject(a.add(b).divideBy(2));
     };
     const mesh = L.layerGroup();
-    const style = { color: '#162920', weight: 1, opacity: .38, interactive: false, pane: 'livermore-mesh' };
+    const style = { color: '#262728', weight: 1, opacity: .38, interactive: false, pane: 'livermore-mesh' };
     for (let i = 0; i < segments; i++) {
       const south = edgeMidpoint(i, 1);
       const north = edgeMidpoint(3 * segments - i, -1);
@@ -46,32 +48,70 @@
     return mesh;
   }
 
-  function createStudyLayer(L, references) {
-    const validPosition = position => Array.isArray(position) && position.length === 2 &&
-      position.every(Number.isFinite) && Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90;
-    const features = references.features;
-    const validTrack = (feature, excerpt) => feature?.properties?.excerpt === excerpt &&
-      feature.geometry?.type === 'LineString' && Array.isArray(feature.geometry.coordinates) &&
-      feature.geometry.coordinates.length >= 2 && feature.geometry.coordinates.every(validPosition);
-    if (references.type !== 'FeatureCollection' || features?.length !== 3 ||
-        !validTrack(features[0], 1) || !validTrack(features[1], 2) ||
-        features[2]?.properties?.kind !== 'observer' || features[2]?.geometry?.type !== 'Point' ||
-        !validPosition(features[2].geometry.coordinates)) throw new Error('Unexpected study geometry');
+  function studyLabel(L, coordinates, track) {
+    const position = coordinates[track.anchor];
+    const next = coordinates[track.anchor + 1];
+    const latLng = point => L.latLng(point[1], point[0]);
+    const project = point => L.CRS.EPSG3857.project(latLng(point));
+    // These samples are in the original KML time order. A north-pointing
+    // icon turns to follow the next recorded segment in the map projection.
+    const direction = project(next).subtract(project(position));
+    const heading = Math.atan2(direction.x, direction.y) * 180 / Math.PI;
+    const content = document.createElement('span');
+    content.className = 'livermore-flight-label-body';
+    content.setAttribute('aria-hidden', 'true');
+    content.style.setProperty('--study-color', track.color);
+    content.style.setProperty('--study-heading', `${heading}deg`);
+    const badge = document.createElement('span');
+    badge.className = 'livermore-flight-badge';
+    const plane = document.createElement('span');
+    plane.className = 'livermore-flight-plane';
+    badge.append(plane);
+    const label = document.createElement('span');
+    label.className = 'livermore-flight-id';
+    label.textContent = track.identifier;
+    content.append(badge, label);
 
-    const tracks = [{ color: '#4275b4' }, { color: '#873a9d', dashArray: '7 5' }];
-    return L.geoJSON(references, {
-      pane: 'livermore-study',
-      interactive: false,
-      style: feature => feature.geometry.type === 'LineString'
-        ? { ...tracks[feature.properties.excerpt - 1], className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0 }
-        : { className: 'livermore-study-observer', color: '#182a21', fillColor: '#fff8d6', weight: 2, fillOpacity: 1 },
-      pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
-        pane: 'livermore-study', interactive: false, radius: 6,
+    return L.marker(latLng(position), {
+      pane: 'livermore-study', interactive: false, keyboard: false,
+      icon: L.divIcon({
+        html: content, iconSize: [24, 24], iconAnchor: [12, 12],
+        className: track.labelLeft ? 'livermore-flight-label livermore-flight-label-left' : 'livermore-flight-label',
       }),
     });
   }
 
+  function createStudyLayer(L, references) {
+    const validPosition = position => Array.isArray(position) && position.length === 2 &&
+      position.every(Number.isFinite) && Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90;
+    const features = references?.features;
+    const validTrack = (feature, excerpt) => {
+      const track = studyTracks[excerpt - 1];
+      return feature?.properties?.excerpt === excerpt &&
+        feature.properties.track_file === track.identifier + '-track-EGM96.kml' &&
+        feature.geometry?.type === 'LineString' && Array.isArray(feature.geometry.coordinates) &&
+        feature.geometry.coordinates.length > track.anchor + 1 && feature.geometry.coordinates.every(validPosition);
+    };
+    if (references?.type !== 'FeatureCollection' || features?.length !== 3 ||
+        !validTrack(features[0], 1) || !validTrack(features[1], 2) ||
+        features[2]?.properties?.kind !== 'observer' || features[2]?.geometry?.type !== 'Point' ||
+        !validPosition(features[2].geometry.coordinates)) throw new Error('Unexpected study geometry');
+
+    const geometry = L.geoJSON(references, {
+      pane: 'livermore-study',
+      interactive: false,
+      style: feature => feature.geometry.type === 'LineString'
+        ? { ...studyTracks[feature.properties.excerpt - 1], className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0 }
+        : { className: 'livermore-study-observer', color: '#252829', fillColor: '#fff8d6', weight: 2, fillOpacity: 1 },
+      pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
+        pane: 'livermore-study', interactive: false, radius: 6,
+      }),
+    });
+    return L.layerGroup([geometry, ...studyTracks.map((track, i) => studyLabel(L, features[i].geometry.coordinates, track))]);
+  }
+
   async function createMap() {
+    const studyData = readJSON('study-reference.geojson').catch(() => null);
     const [footprint, overlay] = await Promise.all([
       readJSON('search-boundary.json'),
       readJSON('overlay-metadata.json'),
@@ -92,7 +132,7 @@
     );
     const outlineOptions = { pane: 'livermore-boundary', interactive: false, style: { fill: false, smoothFactor: 0 } };
     const outline = L.geoJSON(footprint, { ...outlineOptions,
-      style: { ...outlineOptions.style, color: '#f6fff9', weight: 1.8 },
+      style: { ...outlineOptions.style, color: '#f4f4f4', weight: 1.8 },
     });
     const searchBounds = outline.getBounds();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -111,7 +151,7 @@
       maxBoundsViscosity: 1,
       zoomSnap: .25,
       zoomAnimation: !reducedMotion,
-      fadeAnimation: !reducedMotion,
+      fadeAnimation: false,
     });
     const fitSearch = () => {
       map.setMinZoom(8);
@@ -161,13 +201,11 @@
       scoreUnavailable = true;
       scores.remove();
       scoreLegend.hidden = true;
-      scoreButton.setAttribute('aria-pressed', 'false');
-      scoreButton.disabled = true;
       updateMapControls();
       report();
     }).addTo(map);
     L.geoJSON(footprint, { ...outlineOptions,
-      style: { ...outlineOptions.style, color: '#14221c', weight: 5 },
+      style: { ...outlineOptions.style, color: '#252829', weight: 5 },
     }).addTo(map);
     outline.addTo(map);
 
@@ -176,42 +214,15 @@
     fit.addEventListener('click', fitSearch);
     surface.addEventListener('focus', () => map.scrollWheelZoom.enable());
     surface.addEventListener('blur', () => map.scrollWheelZoom.disable());
-    scoreButton.addEventListener('click', () => {
-      const show = !map.hasLayer(scores);
-      if (show) scores.addTo(map);
-      else scores.remove();
-      scoreButton.setAttribute('aria-pressed', String(show));
-      scoreLegend.hidden = !show;
-      updateMapControls();
-    });
-    let studyLayer;
-    let studyLoading = false;
-    studyButton.addEventListener('click', async () => {
-      if (studyLoading) return;
-      if (!studyLayer) {
-        studyLoading = true;
-        studyUnavailable = false;
-        report();
-        studyButton.setAttribute('aria-busy', 'true');
-        try {
-          studyLayer = createStudyLayer(L, await readJSON('study-reference.geojson'));
-        } catch {
-          studyUnavailable = true;
-          report();
-          return;
-        } finally {
-          studyLoading = false;
-          studyButton.removeAttribute('aria-busy');
-        }
-      }
-      const show = !map.hasLayer(studyLayer);
-      if (show) studyLayer.addTo(map);
-      else studyLayer.remove();
-      studyButton.setAttribute('aria-pressed', String(show));
-      studyLegend.hidden = !show;
-    });
     map.on('zoomend', updateMapControls);
     updateMapControls();
+    try {
+      createStudyLayer(L, await studyData).addTo(map);
+      studyLegend.hidden = false;
+    } catch {
+      studyUnavailable = true;
+      report();
+    }
   }
 
   createMap().catch(() => {

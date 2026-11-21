@@ -3,54 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0b1110">
+  <meta name="theme-color" content="#0d0f11">
   <meta name="description" content="Explore the Livermore aircraft audio geolocation replay, the measured fit scores and the validation results.">
   <title>Aircraft Geolocation with Audio | Khy Bolt</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
   <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="./livermore.css?v=editorial2">
+  <link rel="stylesheet" href="./livermore.css?v=editorial3">
   <script src="./assets/leaflet/leaflet.js" defer></script>
-  <script src="./livermore.js?v=editorial2" defer></script>
-  <script src="./assets/case.js" defer></script>
-  <script src="./demo.js" defer></script>
+  <script src="./livermore.js?v=editorial3" defer></script>
 </head>
 <body>
   <a class="skip" href="#livermore">Skip to the Livermore map</a>
   <header class="top shell">
     <a href="../" class="top-link"><span aria-hidden="true">←</span> Portfolio</a>
-    <a href="./field/" class="top-link">Field benchmark <span aria-hidden="true">↗</span></a>
-    <a href="https://github.com/KhyBolt/aircraft-doppler" class="top-link source-link">View source <span aria-hidden="true">↗</span></a>
   </header>
   <main class="shell">
     <div class="hero doppler-intro">
-      <h1>Aircraft Geolocation with Audio<span aria-hidden="true">.</span></h1>
-      <p class="intro-description">This tool estimates where a recording was made by comparing the changing pitch of passing aircraft with historical flight tracks.</p>
-      <p class="intro-requirements">Start with a rough recording time and search area, and audio with two clearly audible flyovers.</p>
-      <div class="intro-listen">
-        <p id="intro-listen-label">Hear the pitch drop in two synthetic flyover excerpts.</p>
-        <audio controls preload="none" src="./assets/excerpts.mp3" aria-labelledby="intro-listen-label">
-          <a href="./assets/excerpts.mp3">Listen to the synthetic excerpts</a>
-        </audio>
-      </div>
+      <h1>Aircraft Geolocation with Audio</h1>
+      <p>I built this to see if the sound of passing aircraft could help locate a recording. Given a rough time, a search area, and two audible flyovers, it compares pitch changes with archived flight tracks and ranks possible recording locations.</p>
     </div>
     <section id="livermore" class="livermore-section" aria-labelledby="livermore-title">
       <div class="livermore-heading">
-        <h2 id="livermore-title">Search heatmap · Livermore, California</h2>
-        <p><time datetime="2026-05-17">17 May 2026</time> · Full-day replay</p>
+        <h2 id="livermore-title">Livermore search heatmap</h2>
+        <p>California · <time datetime="2026-05-17">17 May 2026</time></p>
       </div>
-      <p class="livermore-example">The colours show how closely the model matched the audio at 121 sample locations, spaced 1 km apart. Zoom in to see the sampling grid. <a href="#livermore-benchmark-notes">Read the benchmark notes</a>.</p>
       <figure class="livermore-figure" aria-labelledby="livermore-title">
         <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Map controls" hidden>
-          <div class="livermore-zoom">
-            <button id="livermore-in" type="button" aria-label="Zoom in">+</button>
-            <button id="livermore-out" type="button" aria-label="Zoom out">−</button>
-          </div>
-          <div class="livermore-actions">
-            <button id="livermore-fit" type="button">Fit area</button>
-            <button id="livermore-scores" type="button" aria-pressed="true">Scores</button>
-            <button id="livermore-study" type="button" aria-label="Study references" aria-controls="livermore-study-legend" aria-pressed="false">Study</button>
-          </div>
+          <button id="livermore-in" class="livermore-zoom" type="button" aria-label="Zoom in">+</button>
+          <button id="livermore-out" class="livermore-zoom" type="button" aria-label="Zoom out">−</button>
+          <button id="livermore-fit" type="button">Fit area</button>
         </div>
         <div class="livermore-surface">
           <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help livermore-scale-note" tabindex="0" hidden></div>
@@ -62,9 +44,16 @@
         <p class="livermore-status" id="livermore-status" role="status" hidden></p>
         <figcaption class="livermore-caption">
           <div class="livermore-legend">
-            <p class="livermore-key">10 × 10 km search area</p>
+            <div class="livermore-map-keys">
+              <p class="livermore-key">10 × 10 km search area</p>
+              <ul class="livermore-study-legend" id="livermore-study-legend" aria-label="Published study references" hidden>
+                <li class="study-first-key">N9393T</li>
+                <li class="study-second-key">N86LP</li>
+                <li class="study-observer-key">Published recorder position</li>
+              </ul>
+            </div>
             <div class="livermore-score-legend" id="livermore-score-legend">
-              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Pitch error (Hz²)</span><strong>Weaker fit</strong></div>
+              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Coarse pitch error (Hz²)</span><strong>Weaker fit</strong></div>
               <ol class="livermore-bands" aria-label="Training pitch error by colour, in squared hertz">
                 <li style="--swatch:#691019">&lt;1</li>
                 <li style="--swatch:#b82e32">1–&lt;2</li>
@@ -73,146 +62,37 @@
                 <li style="--swatch:#f0b27e">4–&lt;6</li>
                 <li style="--swatch:#e9cfab">≥6</li>
               </ol>
-              <p id="livermore-scale-note">Lower error means a closer relative fit to the recorded audio. The colours are not probabilities.</p>
+              <p id="livermore-scale-note">Relative fit across 121 samples, 1 km apart. These scores are not probabilities.</p>
             </div>
           </div>
-          <div class="livermore-study-legend" id="livermore-study-legend" hidden>
-            <ul aria-label="Study references">
-              <li class="study-observer-key">Study phone position</li>
-              <li class="study-first-key">Study track · excerpt 1</li>
-              <li class="study-second-key">Study track · excerpt 2</li>
-            </ul>
-            <p>The marker and flight samples come from <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak’s published study data</a>, v2, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. The track lines cover the two recording intervals. The heatmap is the solver’s separate result.</p>
-          </div>
-          <p class="livermore-credit">Terrain from <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>. Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a>. <a href="./assets/livermore/archive-query.py">Archive query</a>.</p>
+          <p class="livermore-credit">Displayed tracks and recorder reference from <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak’s study data</a>, v2, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Terrain from the <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>.</p>
+          <p class="livermore-credit">Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under <a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a>.</p>
         </figcaption>
       </figure>
+      <nav class="livermore-links" aria-label="More about the replay">
+        <a href="#livermore-benchmark-notes">Benchmark notes</a>
+        <a href="./field/">Field benchmark</a>
+        <a href="https://github.com/KhyBolt/aircraft-doppler">Source repository</a>
+      </nav>
     </section>
     <section id="livermore-benchmark-notes" class="chapter replay-results" aria-labelledby="livermore-results">
-      <h2 id="livermore-results">Livermore benchmark notes</h2>
-      <p>The study’s matching pair ranked first of 17,101. One flyover passed 1 of 4 held-out blocks, and the residual checks also failed. The solver returned no location.</p>
-      <table class="replay-table">
-        <thead><tr><th scope="col">Replay</th><th scope="col">Pair rank</th><th scope="col">Held-out audio blocks passed</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">Original audio</th><td>1 / 17,101</td><td>3/3 and 1/4</td></tr>
-          <tr><th scope="row">Swapped audio order</th><td>1,230 / 17,170</td><td>1/4 and 2/3</td></tr>
-          <tr><th scope="row">Wrong UTC day</th><td>Absent from 9,252</td><td>2/3 and 1/4</td></tr>
-        </tbody>
-      </table>
-      <p>All three replays abstained. After ranking, the leading estimate was about 321 m from the study’s published recorder position. This distance is a diagnostic comparison. The independent survey uncertainty of that reference is unknown.</p>
+      <h2 id="livermore-results">Benchmark notes</h2>
+      <p>The matching pair ranked first of 17,101. One flyover passed 1 of 4 held-out blocks and the residual checks failed, so the solver abstained. Its top estimate was about 321 m from the published recorder position, a diagnostic comparison made after ranking. The reference’s independent survey uncertainty is unknown.</p>
       <details class="replay-details">
-        <summary>Data and reproducibility</summary>
-        <p>The replay used two public research recordings and one UTC day of historical tracks. The <a href="./assets/livermore/replay-method.md">replay method</a>, <a href="./assets/livermore/archive-query.py">archive query</a> and <a href="./assets/livermore/overlay-metadata.json">original overlay metadata</a> record the inputs, score bins and solver revisions. The archive query checks input counts and digests. Reproducing the ranking and the 321 m estimate requires pinned solver revisions that are unavailable through the current public links. This map keeps the same bins and changes their colour and opacity.</p>
-        <p>The <a href="./assets/livermore/study-reference.geojson">study reference overlay</a> uses the observer coordinates published in the study’s results table and points from the matching KML files. The solver’s fitted point and scored track geometries are unavailable in the public replay bundle.</p>
-        <p>Research audio by <a href="https://doi.org/10.5281/zenodo.24075029">Praveen Pathak, <cite>Aeroplane data full analysis and raw files</cite>, v2</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+        <summary>Control runs and data</summary>
+        <table class="replay-table">
+          <thead><tr><th scope="col">Replay</th><th scope="col">Pair rank</th><th scope="col">Held-out audio blocks passed</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Original audio</th><td>1 / 17,101</td><td>3/3 and 1/4</td></tr>
+            <tr><th scope="row">Swapped audio order</th><td>1,230 / 17,170</td><td>1/4 and 2/3</td></tr>
+            <tr><th scope="row">Wrong UTC day</th><td>Absent from 9,252</td><td>2/3 and 1/4</td></tr>
+          </tbody>
+        </table>
+        <p>All three runs abstained.</p>
+        <p>The <a href="./assets/livermore/replay-method.md">replay method</a>, <a href="./assets/livermore/archive-query.py">archive query</a>, and <a href="./assets/livermore/overlay-metadata.json">score metadata</a> document the inputs and fit scores. The archived inputs can be checked against their digests. Repeating the search requires solver revisions that are unavailable through the public links.</p>
+        <p>The <a href="./assets/livermore/study-reference.geojson">study overlays</a> use the published recorder coordinates and matching KML samples during each recording. The public replay bundle contains no fitted point, scored track geometry, or finer grid scores.</p>
       </details>
     </section>
-    <details class="synthetic-replay">
-      <summary>Synthetic demonstration and code</summary>
-      <noscript><p class="noscript">Enable JavaScript for the interactive replay, or <a href="https://github.com/KhyBolt/aircraft-doppler/blob/main/example/synthetic.wav">open the full synthetic recording</a> and <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/evidence">open the saved search evidence</a>.</p></noscript>
-      <p class="noscript" id="data-error" hidden>The saved replay could not be loaded. Try refreshing the page or <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/evidence">open the search evidence</a>.</p>
-      <div id="case-content" hidden>
-        <section id="recording" class="chapter" aria-labelledby="recording-title">
-          <div class="chapter-heading">
-            <div><h2 id="recording-title">Listen for the pitch drop.</h2></div>
-            <p class="aside-caption">Headphones help with the low tones.</p>
-          </div>
-          <div class="transport">
-            <div class="time-row">
-              <button class="play" id="play" type="button" aria-label="Play current excerpt">
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path class="play-shape" d="M8 5l11 7-11 7z" fill="currentColor"/><path class="pause-shape" d="M8 5v14m8-14v14" stroke="currentColor" stroke-width="3"/></svg>
-              </button>
-              <span class="time" id="time"><span id="elapsed">00:00</span> <span aria-hidden="true">/</span> <span id="duration"></span></span>
-              <span class="transport-label">Playback excerpts · full 27:00 shown</span>
-            </div>
-            <div class="timeline-strip">
-              <svg class="timeline" id="timeline" viewBox="0 0 1000 108" preserveAspectRatio="none" aria-hidden="true"></svg>
-              <span class="playhead" id="playhead" aria-hidden="true"></span>
-            </div>
-            <div class="time-ticks" id="time-ticks" aria-hidden="true"></div>
-            <audio id="audio" preload="none" src="./assets/excerpts.mp3"></audio>
-            <p id="audio-feedback" class="audio-feedback" role="status" hidden></p>
-          </div>
-          <div class="event-grid" id="events" aria-label="Detected flyover excerpts"></div>
-          <p class="caption"><span class="trace-key" aria-hidden="true"></span> The mint line is the pitch picked out of the audio. It falls as the aircraft moves from approaching to receding.</p>
-        </section>
-
-        <section id="search" class="chapter" aria-labelledby="search-title">
-          <div class="chapter-heading">
-            <div><h2 id="search-title">Where do both drops fit?</h2></div>
-          </div>
-          <div class="search-layout">
-            <div class="result">
-              <p id="search-intro"></p>
-              <button id="reveal" type="button" class="primary-button" aria-expanded="false" aria-controls="result-data">Reveal saved search <span aria-hidden="true">↘</span></button>
-              <div id="result-data" hidden>
-                <div class="outcome">
-                  <p class="eyebrow">This fixture</p>
-                  <h3 id="result-title"></h3>
-                  <p id="result-copy"></p>
-                </div>
-                <dl class="result-facts">
-                  <div><dt>Matched tracks</dt><dd id="result-pair"></dd></div>
-                  <div><dt>Estimated clock offset</dt><dd id="result-offset"></dd></div>
-                </dl>
-                <p class="screenshot-link"><a href="./assets/result.webp">Open result image <span aria-hidden="true">↗</span></a></p>
-              </div>
-              <p class="caption" id="truth-copy" hidden></p>
-              <p class="sr-only" id="announcer" aria-live="polite"></p>
-            </div>
-            <div class="map-shell">
-              <div class="map-toolbar">
-                <div class="segmented" role="group" aria-label="Map scale">
-                  <button type="button" id="survey-view" aria-pressed="true" disabled>Survey</button>
-                  <button type="button" id="detail-view" aria-pressed="false" disabled>Zoom to fit</button>
-                </div>
-                <button class="secondary-button" type="button" id="truth-toggle" aria-pressed="false" disabled>Show true location</button>
-              </div>
-              <div class="map-frame">
-                <svg viewBox="0 0 460 445" id="map" role="img" aria-labelledby="map-title map-description"></svg>
-              </div>
-              <div class="map-legend">
-                <span id="score-legend" hidden><span class="scale" aria-hidden="true"></span> Better fit <span aria-hidden="true">→</span> Worse fit</span>
-                <span id="map-sampling"></span>
-              </div>
-              <div class="map-legend marker-legend" id="pin-legend" hidden>
-                <span><span class="legend-estimate" aria-hidden="true">⊙</span> Estimated microphone</span>
-                <span id="truth-legend" hidden><span class="legend-truth" aria-hidden="true">◆</span> True synthetic location</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="chapter evidence-section" aria-labelledby="evidence-title">
-          <details id="evidence">
-            <summary><h2 id="evidence-title">How the search worked.</h2></summary>
-            <div class="evidence-content">
-              <ol class="method-list">
-                <li>Find two sustained falling tones in the recording, before looking at the flight tracks.</li>
-                <li>Use candidate flight tracks and sound travel time to predict pitch at each receiver position, allowing one shared offset between the audio and track clocks.</li>
-                <li>Refine the best-fitting areas. Return a point only when the search passes the benchmark’s checks.</li>
-              </ol>
-              <p id="evidence-control"></p>
-              <p>The checks are not a guarantee. A deliberately constructed pair of tracks with indistinguishable Doppler curves still produced a wrong result. The 14.2 m error above applies only to this fixture.</p>
-              <p>All audio and tracks are simulated. This page replays a saved run; it doesn’t process other recordings or look up aircraft.</p>
-              <div class="evidence-links">
-                <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/evidence">Open case evidence <span aria-hidden="true">↗</span></a>
-                <a href="https://github.com/KhyBolt/aircraft-doppler/blob/main/example/synthetic.wav">Original WAV on GitHub <span aria-hidden="true">↗</span></a>
-              </div>
-              <h3>Run this exact case</h3>
-              <p>Clone the <a href="https://github.com/KhyBolt/aircraft-doppler" class="source-link">source repo</a> with Python 3.12. Run these commands from the repo root with a new output folder. The replay uses the three exact files in <a href="https://github.com/KhyBolt/aircraft-doppler/tree/main/example"><code>example/</code></a> and does not read <code>truth.json</code>.</p>
-              <div class="code-wrap">
-                <button type="button" class="secondary-button" id="copy-command">Copy command</button>
-                <span id="copy-status" role="status"></span>
-                <pre><code id="replay-command">python -m pip install -r requirements-verified.txt
-  python demo_replay.py --output runs/exact-demo</code></pre>
-              </div>
-              <p class="caption" id="evidence-version"></p>
-            </div>
-          </details>
-        </section>
-      </div>
-    </details>
   </main>
   <footer class="shell footer"><span>Khy Bolt</span><a href="../">Back to portfolio <span aria-hidden="true">↗</span></a></footer>
 </body>
