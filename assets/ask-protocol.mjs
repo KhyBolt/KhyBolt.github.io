@@ -92,6 +92,10 @@ export const portfolioLinks = Object.freeze({
   resume: Object.freeze({ label: "Résumé PDF", url: "https://khybolt.github.io/assets/khy-bolt-resume.pdf" }),
   linkedin: Object.freeze({ label: "LinkedIn", url: "https://au.linkedin.com/in/khybolt" }),
   projects: Object.freeze({ label: "Featured projects", url: "https://khybolt.github.io/#projects" }),
+  "ascii-sharks": Object.freeze({
+    label: "ASCII shark animation source",
+    url: "https://github.com/stackedlol/ascii-sharks",
+  }),
   "colsto-video": Object.freeze({
     label: "Colsto’s aircraft geolocation video",
     url: "https://www.youtube.com/watch?v=UytYrhYLOKI",

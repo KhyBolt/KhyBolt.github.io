@@ -3,7 +3,7 @@ import {
   isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
   MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
   boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
-} from "./ask-protocol.mjs?v=career-chat3";
+} from "./ask-protocol.mjs?v=career-chat4";
 import { normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
