@@ -8,8 +8,10 @@
   <title>Aircraft Geolocation with Audio | Khy Bolt</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
+  <link rel="stylesheet" href="../assets/reference.css?v=3c0a95a69a355b7d">
   <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="./livermore.css?v=livermore-example1">
+  <link rel="stylesheet" href="./livermore.css?v=livermore-layout1">
+  <script src="../assets/reference-theme.js?v=d18b26892c06b6e3"></script>
   <script src="./assets/leaflet/leaflet.js" defer></script>
   <script src="./livermore.js?v=livermore-example1" defer></script>
 </head>
@@ -17,9 +19,23 @@
   <a class="skip" href="#livermore">Skip to the Livermore map</a>
   <header class="top shell">
     <a href="../" class="top-link"><span aria-hidden="true">←</span> Portfolio</a>
+    <button type="button" id="reference-theme" class="theme-switch" role="switch" aria-checked="false"
+      aria-label="Light theme" title="Switch to light theme" hidden>
+      <span class="theme-track" aria-hidden="true">
+        <span class="theme-knob">
+          <svg class="theme-moon" viewBox="0 0 24 24" fill="none" focusable="false">
+            <path d="M19.5 15A8.3 8.3 0 0 1 9 4.5 8.3 8.3 0 1 0 19.5 15Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="theme-sun" viewBox="0 0 24 24" fill="none" focusable="false">
+            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 2.5v2m0 15v2M2.5 12h2m15 0h2M5.3 5.3l1.4 1.4m10.6 10.6 1.4 1.4m0-13.4-1.4 1.4M6.7 17.3l-1.4 1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </span>
+      </span>
+    </button>
   </header>
   <main class="shell">
-    <div class="hero doppler-intro">
+    <div class="doppler-intro">
       <h1>Aircraft Geolocation with Audio</h1>
       <p>I built this to figure out where an audio or video clip was recorded. If it captures two audible aircraft flyovers, the tool compares how their pitch changes with historical flight tracks to estimate where the recorder was.</p>
       <p class="doppler-inspiration"><a href="https://www.youtube.com/watch?v=UytYrhYLOKI">Colsto’s YouTube video</a> gave me the idea. This is my own implementation.</p>
@@ -27,7 +43,7 @@
     <section id="livermore" class="livermore-section" aria-labelledby="livermore-title">
       <div class="livermore-heading">
         <h2 id="livermore-title">Livermore example case</h2>
-        <p>California · <time datetime="2026-05-17">17 May 2026</time></p>
+        <p class="livermore-meta">California · <time datetime="2026-05-17">17 May 2026</time></p>
       </div>
       <p class="livermore-example-copy">For this run, I used two pitch traces and their matching flight tracks from a published study. The best fit was 144 m from the published phone location. It’s an estimate, not a confirmed fix.</p>
       <figure class="livermore-figure" aria-labelledby="livermore-title">
@@ -44,8 +60,8 @@
           </div>
         </div>
         <p class="sr-only" id="livermore-help">Drag to pan or pinch to zoom. With the map focused, use the mouse wheel, arrow keys and plus or minus.</p>
-        <p class="livermore-status" id="livermore-status" role="status" hidden></p>
         <figcaption class="livermore-caption">
+          <p class="livermore-status" id="livermore-status" role="status" hidden></p>
           <div class="livermore-legend">
             <div class="livermore-map-keys">
               <p class="livermore-key">10 × 10 km search area</p>
@@ -80,9 +96,10 @@
           <div class="livermore-audio-item">N9393T <audio aria-label="N9393T flyover recording" controls preload="none" src="./assets/livermore/N9393T.mp3"></audio></div>
           <div class="livermore-audio-item">N86LP <audio aria-label="N86LP flyover recording" controls preload="none" src="./assets/livermore/N86LP.mp3"></audio></div>
         </div>
-        <p class="livermore-credit">MP3 playback copies from <a href="https://doi.org/10.5281/zenodo.24075029">Pathak’s study data</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>). <a href="https://zenodo.org/api/records/24075029/files/raw_flight_data.zip/content">Download the original WAVs (ZIP)</a>.</p>
+        <p class="livermore-credit">MP3 playback copies from <a href="https://doi.org/10.5281/zenodo.24075029">Pathak’s study data</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).</p>
       </section>
       <nav class="livermore-links" aria-label="Project links">
+        <span><a href="https://zenodo.org/api/records/24075029/files/raw_flight_data.zip/content">Download the original WAVs (ZIP)</a>.</span>
         <a href="https://github.com/KhyBolt/aircraft-doppler">Source code</a>
       </nav>
     </section>
