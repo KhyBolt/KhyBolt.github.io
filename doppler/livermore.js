@@ -149,13 +149,20 @@
       zoomAnimation: !reducedMotion,
       fadeAnimation: false,
     });
+    let followingOverview = false;
     const fitSearch = () => {
       map.setMinZoom(8);
       map.fitBounds(searchBounds, { padding: [22, 22], animate: false });
       map.setMinZoom(Math.max(8, map.getZoom() - 1.25));
+      followingOverview = true;
     };
     fitSearch();
-    map.on('resize', fitSearch);
+
+    // The fitted overview follows the viewport until the visitor navigates the map.
+    map.on('movestart zoomstart', () => { followingOverview = false; });
+    map.on('resize', () => {
+      if (followingOverview) fitSearch();
+    });
     L.control.scale({ imperial: false, maxWidth: 86 }).addTo(map);
 
     const failedTiles = new Set();
