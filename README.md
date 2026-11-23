@@ -1,6 +1,10 @@
 # Khy Bolt portfolio
 
-The public landing page uses the dark/light ASCII shark scene and two selected projects. Aircraft Doppler replays a synthetic experiment using audio and a saved map, with a link to the runnable Python project. The Seattle Pothole Worklist is a runnable browser demo using a dated public-data snapshot, not a live dispatch tool or a hosted Python app. It opens a separate local page with four views for the worklist, review capacity, repair history, and sources. There are no build dependencies, remote fonts, telemetry, or runtime API requests. To preview, serve this directory from any static server.
+The public landing page features an ASCII shark scene, Aircraft Geolocation with Audio, and the Corner Pond screenshot gallery. Any static server can serve this directory directly. The Livermore map requests USGS terrain tiles, and the portfolio’s Ask feature uses a remote service.
+
+- The displayed map uses pitch traces, matching flight tracks, and nominal recording start times supplied by the study. Its best fit was 144 m from the study-reported phone location. The verifier abstained. [Livermore assisted replay](https://khybolt.github.io/doppler/#livermore)
+- A separate full-day search used the same recordings and historical adsb.lol tracks. Its top candidate was 321 m from the study-reported phone location, and the verifier also abstained. [Livermore adsb.lol archive search](https://khybolt.github.io/doppler/#livermore-archive)
+- The synthetic fixture has a known microphone location. The Dayton replay used real audio and abstained. [Synthetic Python benchmark](https://khybolt.github.io/doppler/#evidence) and [Dayton field replay](https://khybolt.github.io/doppler/field/)
 
 ## Credits
 

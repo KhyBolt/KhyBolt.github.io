@@ -4,7 +4,7 @@ import {
   MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
   boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
   MAX_ASK_BODY_BYTES, MAX_CHAT_HISTORY_BYTES, MAX_CHAT_TURNS,
-} from "./ask-protocol.mjs?v=career-chat5";
+} from "./ask-protocol.mjs?v=career-chat6-livermore";
 import { normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
