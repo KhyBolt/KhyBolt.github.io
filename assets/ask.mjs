@@ -1,10 +1,10 @@
-import { sources } from "./ask-claim-data.mjs?v=worker1";
+import { sources } from "./ask-claim-data.mjs?v=worker2";
 import {
   isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
   MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
   boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
   MAX_ASK_BODY_BYTES, MAX_CHAT_HISTORY_BYTES, MAX_CHAT_TURNS,
-} from "./ask-protocol.mjs?v=career-chat6-livermore";
+} from "./ask-protocol.mjs?v=career-chat7";
 import { normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
 
 const form = document.getElementById("portfolio-ask-form");
