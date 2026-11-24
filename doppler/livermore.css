@@ -157,7 +157,6 @@ a:hover {
   outline: 2px solid var(--glass-focus);
   outline-offset: -3px;
 }
-.livermore-map .leaflet-image-layer, .livermore-fallback img { image-rendering: pixelated; }
 .livermore-map .leaflet-control-scale-line {
   background: #f4f4f4;
   color: #202326;
@@ -168,13 +167,6 @@ a:hover {
   place-items: center;
   padding: 12px;
 }
-.livermore-fallback img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
 .livermore-flight-label-body { position: relative; display: block; width: 24px; height: 24px; }
 .livermore-flight-badge {
   display: grid;
@@ -220,7 +212,8 @@ a:hover {
 .livermore-point-reference { border-radius: 50%; background: #fff8d6; }
 .livermore-point-estimate { width: 12px; height: 12px; transform: rotate(45deg); background: #fbd5d2; }
 
-.livermore-status {
+.livermore-example-copy + .livermore-example-copy { margin-top: .65rem; }
+.livermore-status:not(:empty) {
   margin-bottom: .75rem;
   color: var(--muted);
   font-size: var(--meta-size);
@@ -309,7 +302,7 @@ a:hover {
   color: var(--ink);
   font-size: .8125rem;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .livermore-bands li::before {
   content: "";
@@ -335,6 +328,11 @@ a:hover {
   margin-top: .75rem;
   padding-top: .625rem;
   border-top: 1px solid var(--line);
+}
+.livermore-caption .livermore-data-credit {
+  margin-top: .25rem;
+  padding-top: 0;
+  border-top: 0;
 }
 .livermore-credit a, .livermore-links a { color: var(--muted); }
 

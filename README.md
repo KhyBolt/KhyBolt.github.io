@@ -1,10 +1,17 @@
 # Khy Bolt portfolio
 
-The public landing page features an ASCII shark scene, Aircraft Geolocation with Audio, and the Corner Pond screenshot gallery. Any static server can serve this directory directly. The Livermore map requests USGS terrain tiles, and the portfolio’s Ask feature uses a remote service.
+The portfolio has an ASCII shark scene, an Ask view, and a Projects view with Aircraft Geolocation with Audio and Corner Pond. The site respects the system’s reduced-motion setting.
 
-- The displayed map uses pitch traces, matching flight tracks, and nominal recording start times supplied by the study. Its best fit was 144 m from the study-reported phone location. The verifier abstained. [Livermore assisted replay](https://khybolt.github.io/doppler/#livermore)
-- A separate full-day search used the same recordings and historical adsb.lol tracks. Its top candidate was 321 m from the study-reported phone location, and the verifier also abstained. [Livermore adsb.lol archive search](https://khybolt.github.io/doppler/#livermore-archive)
-- The synthetic fixture has a known microphone location. The Dayton replay used real audio and abstained. [Synthetic Python benchmark](https://khybolt.github.io/doppler/#evidence) and [Dayton field replay](https://khybolt.github.io/doppler/field/)
+## Local preview
+
+Serve this directory from a static server, for example `python -m http.server 8000 --bind 127.0.0.1`, and open `http://127.0.0.1:8000/`. The Livermore map uses USGS terrain tiles.
+
+On localhost, Ask uses local project answers unless the form points to a same-origin `/ask` handler. On the public site, Ask may send the question and recent turns to a remote service. Don’t include private information.
+
+## Aircraft geolocation
+
+- [Livermore case study](doppler/#livermore).
+- [Source repository and usage guide](https://github.com/KhyBolt/aircraft-doppler#analyze-a-local-recording).
 
 ## Credits
 

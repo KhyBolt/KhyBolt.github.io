@@ -207,13 +207,29 @@
   text-underline-offset: .18em;
 }
 
-.site-about-copy a:focus-visible {
+.site-about-copy a:focus-visible,
+.site-about-motion:focus-visible {
   outline: 2px solid var(--glass-keyboard);
   outline-offset: 2px;
 }
 
+.site-about-motion {
+  margin-block-start: .75rem;
+  min-block-size: 44px;
+  padding: .35rem .65rem;
+  border: 1px solid var(--glass-active-edge);
+  border-radius: .4rem;
+  background: var(--glass-button);
+  font-size: .875rem;
+  cursor: pointer;
+}
+
+.site-about-motion:not([aria-disabled="true"]):hover { background: var(--glass-button-active); }
+.site-about-motion[aria-disabled="true"] { cursor: default; }
+
 @media (forced-colors: active) {
   .site-about-panel,
+  .site-about-motion,
   .public-portfolio .theme-track,
   .site-about-trigger > span {
     border-color: ButtonText;

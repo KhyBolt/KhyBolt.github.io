@@ -2,7 +2,6 @@
   "use strict";
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   const button = document.getElementById("motion-control");
-  const label = document.getElementById("motion-label");
   const ART = document.getElementById("title-art");
   let paused = false, frame = 0, last = 0, elapsed = 0, timeBase = 0;
   const glyphs = {
@@ -93,25 +92,22 @@
     cancelAnimationFrame(frame);
     const reduced=motion.matches;
     if (button) {
-      button.dataset.paused=String(paused);
-      button.dataset.reduced=String(reduced);
-      button.disabled=reduced;
-      label.textContent=reduced ? "Reduced motion active" : paused ? "Resume motion" : "Pause motion";
-      button.title=label.textContent;
+      button.setAttribute("aria-disabled", String(reduced));
+      button.textContent=reduced ? "Background animation off (reduced motion)" : paused ? "Resume background animation" : "Pause background animation";
       button.hidden=false;
     }
     if(ctx && !reduced && !paused && !document.hidden) {
       timeBase=performance.now()-elapsed*1000;
       frame=requestAnimationFrame(draw);
     } else paint(elapsed);
-    window.dispatchEvent(new CustomEvent("portfolio-motion",{detail:{paused}}));
+    window.dispatchEvent(new CustomEvent("portfolio-motion",{detail:{paused:paused || document.hidden}}));
   }
   if(ctx && typeof ResizeObserver!=="undefined"){
     const ro=new ResizeObserver(resize);ro.observe(ART);
     resize();
     document.fonts.ready.then(()=>paint(elapsed));
   }
-  button?.addEventListener("click",()=>{paused=!paused;state();});
+  button?.addEventListener("click",()=>{if(!motion.matches){paused=!paused;state();}});
   motion.addEventListener("change",state);
   document.addEventListener("visibilitychange",state);
   state();
@@ -119,14 +115,19 @@
     const frames = [...tile.querySelectorAll("img[data-frame]")];
     const step = tile.querySelector(".frame-step");
     if (frames.length < 2) continue;
-    let current=0, expected=0, generation=0, pointer=false, focus=false, timer=0;
+    let current=0, expected=0, generation=0, pointer=false, manualSelection=false, timer=0;
     const stepTitle=step?.getAttribute("aria-label");
-    const set = (next,manual=false) => {
+    const set = (next,manual=false,autoplay=false) => {
+      if (manual) manualSelection=true;
       expected=(next+frames.length)%frames.length;
       const ticket=++generation, entry=frames[expected];
       entry.loading="eager";
       const show = () => {
         if (ticket!==generation || !entry.naturalWidth) return;
+        if (autoplay && (!pointer || frozen() || document.hidden)) {
+          expected=current;
+          return;
+        }
         current=expected;
         frames.forEach((picture,i)=> {picture.hidden=i!==current;});
         if (step) {
@@ -135,23 +136,32 @@
           if(manual) step.setAttribute("aria-label",stepTitle+". Frame "+(current+1)+" of "+frames.length+".");
         }
       };
-      if (entry.complete && entry.naturalWidth) show(); else entry.decode().then(show,()=>{});
+      if (entry.complete && entry.naturalWidth) show(); else entry.decode().then(show,()=>{
+        if (ticket===generation) expected=current;
+      });
     };
     const resetTimer=()=> {
       clearInterval(timer);
-      if (!frozen() && !document.hidden && (pointer || focus)) {
-        frames.forEach(img => { img.loading="eager"; });
-        timer=setInterval(()=>set(current+1),1620);
+      if (!frozen() && !document.hidden && pointer && !manualSelection) {
+        timer=setInterval(()=>set(current+1,false,true),1620);
       }
     };
-    tile.addEventListener("pointerenter",e=>{if(e.pointerType!=="touch") {pointer=true;resetTimer();}});
-    tile.addEventListener("pointerleave",()=>{pointer=false;resetTimer();if(!focus)set(0);});
-    tile.addEventListener("focusin",e=>{focus=e.target.matches(".tile-link");resetTimer();});
-    tile.addEventListener("focusout",e=>{if (!tile.contains(e.relatedTarget)) { focus=false;resetTimer();if(!pointer)set(0); }});
-    tile.addEventListener("keydown",e=> {
-      if (e.key==="ArrowLeft" || e.key==="ArrowRight") {
-        e.preventDefault();
-        set(expected+(e.key==="ArrowRight"?1:-1),true);resetTimer();
+    tile.addEventListener("pointerenter",event=>{
+      if (event.pointerType==="touch") return;
+      pointer=true;
+      manualSelection=false;
+      resetTimer();
+    });
+    tile.addEventListener("pointerleave",()=>{
+      pointer=false;
+      resetTimer();
+      if (!frozen() && !manualSelection) set(0);
+    });
+    tile.addEventListener("keydown",event=> {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key==="ArrowLeft" || event.key==="ArrowRight") {
+        event.preventDefault();
+        set(expected+(event.key==="ArrowRight"?1:-1),true);resetTimer();
       }
     });
     step?.addEventListener("click",e=>{e.stopPropagation();set(expected+1,true);resetTimer();});

@@ -1,11 +1,9 @@
-import { sources } from "./ask-claim-data.mjs?v=worker2";
-import {
-  isAnswerLink, isBoundedText, isRecordId, MAX_ANSWER_FACTS, MAX_FACT_BYTES, MAX_ANSWER_LINKS,
-  MAX_ANSWER_SECTIONS, MAX_SECTION_FACTS, MAX_SUMMARY_FACTS,
-  boundChatHistory, isChatAnswer, isShareableChatText, portfolioLinks,
-  MAX_ASK_BODY_BYTES, MAX_CHAT_HISTORY_BYTES, MAX_CHAT_TURNS,
-} from "./ask-protocol.mjs?v=career-chat7";
-import { normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES } from "./portfolio.mjs?v=worker3";
+import { evidence, sources } from "./ask-claim-data.mjs?v=3";
+import { isChatAnswer, isShareableChatText, MAX_CHAT_TURNS, portfolioLinks } from "./ask-protocol.mjs?v=career-chat7";
+import { createClientTransport } from "./ask-transport.mjs?v=5";
+import { answers, normalizeQuestion, MAX_QUESTION, MAX_QUESTION_BYTES, nextTopic, routeQuestion } from "./portfolio.mjs?v=7";
+
+export { createClientTransport };
 
 const form = document.getElementById("portfolio-ask-form");
 const input = form.elements.question;
@@ -18,6 +16,7 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const status = document.getElementById("portfolio-ask-status");
 const statusMessage = status.querySelector(".ask-status-text");
 let history = [];
+let topic = "";
 let busy = false;
 let following = true;
 
@@ -44,79 +43,6 @@ const endpoint = askEndpoint(form.dataset.endpoint, location);
 const remote = endpoint ? createClientTransport(endpoint) : null;
 let activeRequest;
 
-function isAnswerFact(fact) {
-  return isRecordId(fact?.id) && isBoundedText(fact.text, MAX_FACT_BYTES);
-}
-
-const approvedAnswerLinks = Object.values(portfolioLinks);
-
-function isReleasedLink(link) {
-  return isAnswerLink(link) &&
-    approvedAnswerLinks.some(approved => approved.url === link.url && approved.label === link.label);
-}
-
-function answerLinks(links) {
-  return Array.isArray(links) ? links.filter(isReleasedLink).slice(0, MAX_ANSWER_LINKS) : [];
-}
-
-function profileReply(data) {
-  const { facts, partial, sections } = data;
-  if (!Array.isArray(facts) || !facts.length || facts.length > MAX_ANSWER_FACTS ||
-      !facts.every(isAnswerFact) ||
-      new Set(facts.map(fact => fact.id)).size !== facts.length ||
-      typeof partial !== "boolean") return null;
-  if (sections !== undefined) {
-    if (!Array.isArray(sections) || !sections.length || sections.length > MAX_ANSWER_SECTIONS ||
-        !sections.every(parts => Array.isArray(parts) && parts.length > 0 &&
-          parts.length <= MAX_SECTION_FACTS && parts.every(isAnswerFact))) return null;
-    const parts = sections.flat();
-    if (parts.length > MAX_SUMMARY_FACTS || new Set(parts.map(part => part.id)).size !== parts.length ||
-        !facts.every(fact => parts.some(part => part.id === fact.id && part.text === fact.text))) return null;
-  }
-  return { status: "answer", facts, links: answerLinks(data.links), partial, sections };
-}
-
-export function createClientTransport(url, fetcher = globalThis.fetch) {
-  const encoder = new TextEncoder();
-  return async (question, signal, history = []) => {
-    const bodyFor = recent => JSON.stringify({ question, topic: "", history: recent });
-    const recent = boundChatHistory(history, turns =>
-      encoder.encode(JSON.stringify(turns)).byteLength <= MAX_CHAT_HISTORY_BYTES &&
-      encoder.encode(bodyFor(turns)).byteLength <= MAX_ASK_BODY_BYTES
-    );
-    try {
-      const response = await fetcher(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: bodyFor(recent),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(84000)]),
-        credentials: "omit",
-        cache: "no-store",
-        redirect: "error",
-      });
-      const json = response.headers.get("Content-Type")?.startsWith("application/json");
-      if (response.status === 429) {
-        const data = json ? await response.json().catch(() => null) : null;
-        return { status: "rate-limited", limit: data?.limit, retryAfter: Number(response.headers.get("Retry-After")) };
-      }
-      if (!json) return null;
-      const data = await response.json();
-      if (response.status === 502 && data?.status === "fallback" && data.reason === "truncated") {
-        return { status: "truncated" };
-      }
-      if (!response.ok) return null;
-      if (data?.status === "unknown") return { status: "unknown", reason: data.reason };
-      if (data?.status !== "answer") return null;
-      if (isChatAnswer(data.paragraphs)) {
-        return { status: "answer", paragraphs: data.paragraphs, links: answerLinks(data.links), filtered: data.filtered === true };
-      }
-      return profileReply(data);
-    } catch {
-      return null;
-    }
-  };
-}
-
 function cancelRequest() {
   activeRequest?.abort();
 }
@@ -127,8 +53,8 @@ new MutationObserver(() => {
 window.addEventListener("pagehide", cancelRequest);
 
 const serviceFallback = {
-  text: "The live answer is unavailable right now.",
-  links: [],
+  text: "The live answer is unavailable right now. You can still explore the featured projects.",
+  links: [sources.projects],
 };
 function quotaMessage({ limit, retryAfter }) {
   if (limit === "provider-daily") {
@@ -161,7 +87,14 @@ const unshareableQuestion = {
   links: [],
 };
 const projectShortcut = /^(?:open|show|view)(?: me)? (?:the )?projects[?.!]*$/u;
+const aircraftOverview = /^(?:tell me about|what (?:is|was)) (?:the )?aircraft geolocation(?: with audio)?(?: project)?[?.!]*$/u;
 const resumeLink = portfolioLinks.resume;
+
+function localReply(question, prior) {
+  const normalized = normalizeQuestion(question);
+  const id = (aircraftOverview.test(normalized) ? "doppler-method" : routeQuestion(question, prior).direct) || "not-known";
+  return { id, topic: nextTopic(id, prior, question), answer: id !== "not-known" ? answers[id] : undefined };
+}
 
 function nearEnd() {
   return transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop <= 72;
@@ -360,7 +293,7 @@ function appendAnswerText(turn, text) {
 
 function appendTurn(author, text, { links = [], notice, delay = 0 } = {}) {
   const visitor = author === "You";
-  const follow = visitor || nearEnd();
+  const follow = !ask.hidden && !ask.inert && (visitor || nearEnd());
   const turn = document.createElement("li");
   turn.className = visitor ? "ask-turn visitor" : "ask-turn assistant";
   const speaker = document.createElement("span");
@@ -412,7 +345,7 @@ function rememberReply(question, answer) {
 }
 
 async function submitQuestion() {
-  if (busy) return;
+  if (busy || ask.inert) return;
   const question = input.value.trim();
   if (!question) {
     input.focus();
@@ -436,37 +369,52 @@ async function submitQuestion() {
     appendTurn("You", question, { delay: first ? 90 : 0 });
     input.value = "";
     input.dispatchEvent(new Event("input", { bubbles: true }));
-    let answer = unsupported;
-    if (projectShortcut.test(normalizeQuestion(question))) {
-      answer = { text: "Open the featured projects.", links: [sources.projects] };
-    } else if (!isShareableChatText(question)) {
+    let answer;
+    if (!isShareableChatText(question)) {
       answer = unshareableQuestion;
-    } else if (!remote) {
-      answer = serviceFallback;
-    } else if (!ask.inert) {
-      activeRequest = new AbortController();
-      showPendingAnswer();
-      const result = await remote(question, activeRequest.signal, history);
-      if (activeRequest.signal.aborted || ask.inert) return;
-      if (result?.status === "answer") {
-        const paragraphs = result.paragraphs ?? (result.sections
-          ? result.sections.map(parts => parts.map(part => part.text).join(" "))
-          : result.facts.map(fact => fact.text));
-        if (result.partial) paragraphs.push("I don’t have reviewed information for the rest of that question.");
-        answer = {
-          text: paragraphs.join("\n\n"),
-          links: result.links,
-          notice: result.filtered ? "Some parts of the generated answer could not be displayed." : undefined,
-        };
-        if (isChatAnswer(paragraphs)) rememberReply(question, paragraphs);
-      } else if (result?.status === "rate-limited") {
-        answer = { text: quotaMessage(result) };
-      } else if (result?.status === "truncated") {
-        answer = truncatedAnswer;
-      } else if (result?.status === "unknown") {
-        answer = result.reason === "filtered" ? filteredAnswer : unsupported;
+    } else if (projectShortcut.test(normalizeQuestion(question))) {
+      answer = { text: "Open the featured projects.", links: [sources.projects] };
+      topic = "";
+    } else {
+      const local = localReply(question, topic);
+      let result;
+      if (remote && local.id !== "doppler-repo" && local.id !== "doppler-own-recording") {
+        activeRequest = new AbortController();
+        showPendingAnswer();
+        result = await remote(question, activeRequest.signal, history);
+        if (activeRequest.signal.aborted || ask.inert) {
+          appendTurn("Portfolio assistant", "Request canceled.");
+          return;
+        }
+      }
+      if (result?.status === "answer" && result.id) {
+        const { text, sourceIds, topic: recordTopic } = evidence[result.id];
+        answer = { text, links: sourceIds.map(sourceId => sources[sourceId]) };
+        topic = recordTopic === "projects" ? "" : recordTopic;
       } else {
-        answer = serviceFallback;
+        if (result?.status === "answer") {
+          const paragraphs = result.paragraphs ?? (result.sections
+            ? result.sections.map(parts => parts.map(part => part.text).join(" "))
+            : result.facts.map(fact => fact.text));
+          const notices = [];
+          if (result.partial) notices.push("I don’t have reviewed information for the rest of that question.");
+          if (result.filtered) notices.push("Some parts of the generated answer could not be displayed.");
+          answer = { text: paragraphs.join("\n\n"), links: result.links, notice: notices.join(" ") };
+          if (isChatAnswer(paragraphs)) rememberReply(question, paragraphs);
+        } else if (result?.status === "rate-limited") {
+          const text = quotaMessage(result);
+          answer = local.answer ? { ...local.answer, notice: text } : { text };
+        } else if (result?.status === "truncated") {
+          answer = local.answer ? { ...local.answer, notice: truncatedAnswer.text } : truncatedAnswer;
+        } else if (result?.reason === "unreviewed-case") {
+          answer = unsupported;
+          rememberReply(question, [answer.text]);
+        } else if (result?.status === "unknown") {
+          answer = result.reason === "filtered" ? filteredAnswer : local.answer ?? unsupported;
+        } else {
+          answer = local.answer ?? serviceFallback;
+        }
+        topic = result?.reason === "filtered" || result?.reason === "unreviewed-case" ? "" : local.topic;
       }
     }
     appendTurn("Portfolio assistant", answer.text, { links: answer.links, notice: answer.notice, delay: first ? 150 : 54 });

@@ -1,3 +1,14 @@
+:root[data-reference-theme="light"] {
+  color-scheme: light;
+  --base: #f8f8f6;
+  --ink: #232623;
+  --muted: #444a46;
+  --dim: #565e58;
+  --line: #d4d8d3;
+  --panel: #e8eae6;
+  --mint: #1f654c;
+}
+.skip:focus { color: var(--base); }
 .field-intro {
   padding: clamp(38px, 6vw, 64px) 0 clamp(30px, 5vw, 52px);
 }

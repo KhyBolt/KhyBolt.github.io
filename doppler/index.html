@@ -6,14 +6,15 @@
   <meta name="theme-color" content="#0d0f11">
   <meta name="description" content="Aircraft geolocation from the pitch of passing aircraft, with a real-audio example from Livermore.">
   <title>Aircraft Geolocation with Audio | Khy Bolt</title>
+  <link rel="canonical" href="https://khybolt.github.io/doppler/">
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=geolocation1">
   <link rel="stylesheet" href="../assets/reference.css?v=3c0a95a69a355b7d">
   <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="./livermore.css?v=livermore-layout1">
+  <link rel="stylesheet" href="./livermore.css?v=livermore-full-day2">
   <script src="../assets/reference-theme.js?v=d18b26892c06b6e3"></script>
   <script src="./assets/leaflet/leaflet.js" defer></script>
-  <script src="./livermore.js?v=livermore-resize1" defer></script>
+  <script src="./livermore.js?v=livermore-full-day2" defer></script>
 </head>
 <body>
   <a class="skip" href="#livermore">Skip to the Livermore map</a>
@@ -37,56 +38,51 @@
   <main class="shell">
     <div class="doppler-intro">
       <h1>Aircraft Geolocation with Audio</h1>
-      <p>I built this to figure out where an audio or video clip was recorded. If it captures two audible aircraft flyovers, the tool compares how their pitch changes with historical flight tracks to estimate where the recorder was.</p>
+      <p>I built a Python tool that uses the changing pitch of two flyovers and historical flight tracks to estimate where a recording was made.</p>
+      <p><a href="https://github.com/KhyBolt/aircraft-doppler">Aircraft Doppler on GitHub</a></p>
       <p class="doppler-inspiration"><a href="https://www.youtube.com/watch?v=UytYrhYLOKI">Colsto’s YouTube video</a> gave me the idea. This is my own implementation.</p>
     </div>
     <section id="livermore" class="livermore-section" aria-labelledby="livermore-title">
       <div class="livermore-heading">
-        <h2 id="livermore-title">Livermore example case</h2>
+        <h2 id="livermore-title">Two flyovers in Livermore</h2>
         <p class="livermore-meta">California · <time datetime="2026-05-17">17 May 2026</time></p>
       </div>
-      <p class="livermore-example-copy">This assisted replay uses the study’s hand-guided pitch traces, matching flight tracks, and nominal recording start times. The best fit was 144 m from the study-reported phone location. The verifier abstained.</p>
-      <figure class="livermore-figure" aria-labelledby="livermore-title">
+      <p id="livermore-archive" class="livermore-example-copy">I pulled the pitch tracks straight from two phone recordings, 17 minutes apart, and searched a full day of flight data without giving the tool the flight IDs.</p>
+      <p class="livermore-example-copy">It ranked the right pair, N9393T → N86LP, <strong>first out of 12,215</strong> pairs with track coverage. The best fit was about <strong>405 m</strong> from the study’s phone location.</p>
+      <figure id="search" class="livermore-figure" aria-labelledby="livermore-title">
         <div class="livermore-tools" id="livermore-tools" role="group" aria-label="Map controls" hidden>
           <button id="livermore-in" class="livermore-zoom" type="button" aria-label="Zoom in">+</button>
           <button id="livermore-out" class="livermore-zoom" type="button" aria-label="Zoom out">−</button>
           <button id="livermore-fit" type="button">Fit area</button>
-          <button id="livermore-detail" type="button">Show 25 m grid</button>
         </div>
         <div class="livermore-surface">
-          <div class="livermore-map" id="livermore-map" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help livermore-scale-note" tabindex="0" hidden></div>
+          <div class="livermore-map" id="livermore-map" data-replay="livermore-automatic-real-audio-map-v1.json" role="region" aria-label="Livermore terrain and search area" aria-describedby="livermore-help" tabindex="0" hidden></div>
           <div class="livermore-fallback" id="livermore-fallback">
-            <p>The interactive map is unavailable.</p>
+            <p>Map unavailable. <a href="./assets/livermore/livermore-automatic-real-audio-map-v1.json">See the replay results</a>.</p>
           </div>
         </div>
         <p class="sr-only" id="livermore-help">Drag to pan or pinch to zoom. With the map focused, use the mouse wheel, arrow keys and plus or minus.</p>
         <figcaption class="livermore-caption">
-          <p class="livermore-status" id="livermore-status" role="status" hidden></p>
+          <p class="livermore-status" id="livermore-status" role="status"></p>
           <div class="livermore-legend">
             <div class="livermore-map-keys">
               <p class="livermore-key">10 × 10 km search area</p>
               <ul class="livermore-study-legend" id="livermore-study-legend" aria-label="Flight paths and recording locations" hidden>
                 <li class="study-first-key">N9393T</li>
                 <li class="study-second-key">N86LP</li>
-                <li class="study-observer-key">Published phone location</li>
-                <li class="study-estimate-key">Best fit (unverified)</li>
+                <li class="study-observer-key">Study-reported phone location</li>
+                <li class="study-estimate-key" id="livermore-candidate-key" hidden>Best fit</li>
               </ul>
             </div>
-            <div class="livermore-score-legend" id="livermore-score-legend">
-              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Pitch error (Hz²)</span><strong>Weaker fit</strong></div>
-              <ol class="livermore-bands" aria-label="Squared pitch error by colour">
-                <li style="--swatch:#691019">&lt;15</li>
-                <li style="--swatch:#b82e32">&lt;20</li>
-                <li style="--swatch:#dd5d3e">&lt;35</li>
-                <li style="--swatch:#ec8d59">&lt;100</li>
-                <li style="--swatch:#f0b27e">&lt;500</li>
-                <li style="--swatch:#e9cfab">≥500</li>
-              </ol>
-              <p id="livermore-scale-note">Zoom in to see the 100 m and 25 m cells near the best fit.</p>
+            <div class="livermore-score-legend" id="livermore-score-legend" hidden>
+              <div class="livermore-scale-title"><strong>Closer fit</strong><span>Mean squared pitch error (Hz²)</span><strong>Weaker fit</strong></div>
+              <ol class="livermore-bands" id="livermore-bands" aria-label="Squared pitch error by colour"></ol>
+              <p id="livermore-scale-note"></p>
               <p id="livermore-resolution" role="status"></p>
             </div>
           </div>
           <p class="livermore-credit">Terrain: <a href="https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer">USGS National Geospatial Program</a>.</p>
+          <p class="livermore-credit livermore-data-credit">Contains information from <a href="https://www.adsb.lol/docs/open-data/historical">adsb.lol historical data</a>, available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License (ODbL 1.0)</a>.</p>
         </figcaption>
       </figure>
       <section class="livermore-audio" aria-labelledby="livermore-audio-title">
@@ -96,34 +92,11 @@
           <div class="livermore-audio-item">N9393T <audio aria-label="N9393T flyover recording" controls preload="none" src="./assets/livermore/N9393T.mp3"></audio></div>
           <div class="livermore-audio-item">N86LP <audio aria-label="N86LP flyover recording" controls preload="none" src="./assets/livermore/N86LP.mp3"></audio></div>
         </div>
-        <p class="livermore-credit">MP3 playback copies from <a href="https://doi.org/10.5281/zenodo.24075029">Pathak’s study data</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).</p>
+        <p class="livermore-credit">MP3 conversions and plotted flight paths from <a href="https://doi.org/10.5281/zenodo.24075029">Pathak’s study data</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).</p>
       </section>
-      <nav class="livermore-links" aria-label="Project links">
-        <a href="https://zenodo.org/api/records/24075029/files/raw_flight_data.zip/content">Download the original WAVs (ZIP)</a>
-        <a href="./assets/livermore/livermore-assisted-real-audio-map-v1.json">Assisted map data and verification (JSON)</a>
-        <a href="https://github.com/KhyBolt/aircraft-doppler">Source code</a>
-      </nav>
-    </section>
-    <section id="livermore-archive" class="livermore-section" aria-labelledby="livermore-archive-title">
-      <div class="livermore-heading">
-        <h2 id="livermore-archive-title">Separate Livermore archive search</h2>
-      </div>
-      <p class="livermore-example-copy">A separate run used the same recordings to search a full day of adsb.lol tracks for matching aircraft. Its top candidate was 321 m from the study-reported phone location. The verifier also abstained.</p>
-      <nav class="livermore-links" aria-label="Archive search evidence">
-        <a href="https://github.com/KhyBolt/KhyBolt.github.io/blob/main/doppler/assets/livermore/replay-method.md">Archive search method and results</a>
-        <a href="./assets/livermore/overlay-metadata.json">Archive search metadata (JSON)</a>
-      </nav>
-    </section>
-    <section id="evidence" class="livermore-section" aria-labelledby="evidence-title">
-      <div class="livermore-heading">
-        <h2 id="evidence-title">Synthetic Python benchmark</h2>
-      </div>
-      <p id="search" class="livermore-example-copy">In this separate benchmark, the solver matched two pitch traces to simulated tracks with one shared clock offset. Its estimate was 14.2 m from the known microphone location in this fixture. A deliberately constructed case with equivalent Doppler curves still produced a false acceptance.</p>
-      <nav class="livermore-links" aria-label="Benchmark evidence">
-        <a href="https://github.com/KhyBolt/aircraft-doppler/blob/99423ddd243b2a61c2a48c8dadbd78284d20c138/README.md#replay-the-synthetic-benchmark">Python replay instructions</a>
-        <a href="https://github.com/KhyBolt/aircraft-doppler/blob/99423ddd243b2a61c2a48c8dadbd78284d20c138/evidence/summary.json">Saved synthetic result</a>
-        <a href="https://github.com/KhyBolt/aircraft-doppler/blob/99423ddd243b2a61c2a48c8dadbd78284d20c138/evidence/scorecard.csv">Synthetic control scorecard</a>
-        <a href="./field/">Dayton field benchmark</a>
+      <nav id="evidence" class="livermore-links" aria-label="Project links">
+        <a href="https://github.com/KhyBolt/aircraft-doppler#analyze-a-local-recording">Run it on your own recordings</a>
+        <a href="./assets/livermore/livermore-automatic-real-audio-map-v1.json">Replay results (JSON)</a>
       </nav>
     </section>
   </main>

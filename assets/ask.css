@@ -410,6 +410,7 @@ ol.ask-answer-list { list-style-type: decimal; }
 }
 @media (max-width: 760px) {
   #ask[data-conversation] .portfolio-focal {
+    container: ask-layout / size;
     padding-block-start: calc(max(12px, env(safe-area-inset-top)) + 3rem);
     padding-block-end: max(.6rem, env(safe-area-inset-bottom));
   }
@@ -426,4 +427,10 @@ ol.ask-answer-list { list-style-type: decimal; }
   #ask[data-conversation] .portfolio-focal { gap: .35rem; }
   #ask[data-conversation] .portfolio-focal .masthead { gap: .18rem; }
   #ask[data-conversation] .portfolio-ask { gap: .35rem; }
+}
+@container ask-layout (max-height: 320px) {
+  #ask[data-conversation] form { min-height: 46px; padding-block: 0; }
+  #ask[data-conversation] textarea {
+    max-height: clamp(44px, calc(100cqh - 10rem), 88px);
+  }
 }

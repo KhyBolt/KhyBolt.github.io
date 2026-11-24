@@ -65,13 +65,13 @@ footer{margin:16px 0 8px;color:#486057;font-size:.75rem;line-height:1.55}
 <main>
 <header>
   <div>
-    <p class="eyebrow">Independent case study · Seattle DOT open data</p>
+    <p class="eyebrow">Archived case study · Seattle DOT open data</p>
     <h1>Seattle pothole worklist</h1>
     <p class="description" id="brief">Inspect a dated public work-order snapshot. The worklist does not dispatch repairs.</p>
   </div>
   <div class="stamp" aria-label="Source freshness">
     <span class="kicker">Public snapshot</span>
-    <strong class="mono" id="asOf">Loading date</strong>
+    <strong class="mono" id="asOf">Nov 18, 2026</strong>
     <span class="updated" id="edited">Dated copy, not a live feed</span>
   </div>
 </header>
@@ -103,13 +103,13 @@ footer{margin:16px 0 8px;color:#486057;font-size:.75rem;line-height:1.55}
   <div class="intro"><div><h2 id="capacity-heading">Compare which orders to review first</h2><p>Change the number of review slots to see who moves in or out. This is not a routing estimate.</p></div></div>
   <label class="slots">Review slots <input id="slots" type="number" min="0" max="50" step="1" value="10"></label>
   <div class="scroll"><table class="scenario" aria-label="Review capacity comparison">
-    <thead><tr><th scope="col">Queue order</th><th scope="col">Selected</th><th scope="col">Past due or due today selected</th><th scope="col">Past due or due today remaining</th><th scope="col">Oldest remaining business days</th><th scope="col">District changes</th></tr></thead>
+    <thead><tr><th scope="col">Queue order</th><th scope="col">Selected</th><th scope="col">Due by snapshot: selected</th><th scope="col">Due by snapshot: remaining</th><th scope="col">Oldest remaining business days</th><th scope="col">District changes</th></tr></thead>
     <tbody id="scenarios"></tbody>
   </table></div>
   <p class="block" id="capacityRead"></p>
   <h3>Pending work by source district</h3>
   <div class="scroll"><table class="districts" aria-label="Pending work by source district">
-    <thead><tr><th scope="col">District</th><th scope="col">Past either date</th><th scope="col">Due today</th><th scope="col">Next business day</th><th scope="col">Later</th><th scope="col">Total</th></tr></thead>
+    <thead><tr><th scope="col">District</th><th scope="col">Past either date</th><th scope="col">Due on snapshot date</th><th scope="col">Next business day</th><th scope="col">Later</th><th scope="col">Total</th></tr></thead>
     <tbody id="districts"></tbody>
   </table></div>
   <small>Districts are source codes. Batching reorders only within one deadline date. Each item still needs its own review.</small>
@@ -123,7 +123,7 @@ footer{margin:16px 0 8px;color:#486057;font-size:.75rem;line-height:1.55}
   </table></div>
   <p class="block" id="historyNote"></p>
   <h3>Work orders by month</h3>
-  <small>Uses full calendar months. A work order can start in one month and close in another.</small>
+  <small>The chart and monthly CSV use complete calendar months only. A work order can start in one month and close in another.</small>
   <svg viewBox="0 0 760 185" id="chart" role="img" aria-labelledby="chart-title chart-desc">
   <title id="chart-title">Monthly work-order starts and recorded closures</title>
   <desc id="chart-desc">Line chart. The exact totals are available in the monthly workload CSV.</desc>
@@ -135,6 +135,7 @@ footer{margin:16px 0 8px;color:#486057;font-size:.75rem;line-height:1.55}
 <section class="panel flow" id="page-sources" aria-labelledby="source-heading" hidden>
   <div class="intro"><div><h2 id="source-heading">Check the source and dates</h2><p id="sourceBrief"></p></div></div>
   <p class="block" id="calendarNote"></p>
+  <p>The tables and exports use the data bundled with this page. The linked source is updated independently and will not reproduce this snapshot as it changes.</p>
   <div class="scroll"><table aria-label="Record screening counts by reason">
     <thead><tr><th scope="col">History screening reason</th><th scope="col">Records</th></tr></thead>
     <tbody id="checks"></tbody>
@@ -157,6 +158,7 @@ const $ = id => document.getElementById(id);
 const number = new Intl.NumberFormat("en-US");
 const niceDate = new Intl.DateTimeFormat("en-US",{timeZone:"UTC",year:"numeric",month:"short",day:"numeric"});
 const bands = ["Past either date","Due today","Next business day","Later"];
+const bandLabel = band => band === bands[1] ? "Due on snapshot date" : band;
 const pills = ["late","today","next",""];
 const policies = [["Oldest first","fifo_rank"],["Earliest deadline","deadline_rank"],["Same-district batches","district_batch_rank"]];
 const csvQueue = ['fifo_rank','deadline_rank','district_batch_rank','work_order_id','band','initiated_on','source_due_on','comparison_goal_on','business_days_open','past_source_due','past_comparison_goal','timing_note','district_code','road_segment_id','street_segment','source_priority_code','review_next'];
@@ -184,7 +186,7 @@ $("edited").textContent = "Source edited "+sourceEdit+" UTC";
 $("brief").textContent = `${D.bands["Due today"]} work orders due on ${dname(D.as_of)}. ${D.bands["Past either date"]} past a work-order date or the comparison date when Seattle DOT published this snapshot.`;
 for(const [name,value,filter,cls] of [
   ["Pending work orders",D.in_worklist,"",""],["Past either date",D.bands[bands[0]],bands[0],""],
-  ["Due today",D.bands[bands[1]],bands[1],"due"],["Next business day",D.bands[bands[2]],bands[2],""]
+  [bandLabel(bands[1]),D.bands[bands[1]],bands[1],"due"],["Next business day",D.bands[bands[2]],bands[2],""]
 ]){
   const b=el("button",null,"metric "+cls);b.type="button";
   b.append(el("span",value,"value"),el("span",name,"label"));
@@ -205,7 +207,7 @@ function route(){
 }
 window.addEventListener("hashchange",route);route();
 populate("district",[["","All source districts"],...Object.keys(D.district_summary).map(k=>[k,districtName(k)])]);
-populate("timing",[["","All timing bands"],...bands.map(k=>[k,k])]);
+populate("timing",[["","All timing bands"],...bands.map(k=>[k,bandLabel(k)])]);
 populate("order",policies.map(([label,key])=>[key,label]));
 function visibleQueue(){
   const criteria = $("search").value.trim().toLowerCase();
@@ -225,7 +227,7 @@ function renderQueue(){
   for(const q of visible){
     const tr=addRow(root,[[q.work_order_id,"id"],["",""],[q.source_due_on,"date"],
       [q.comparison_goal_on,"date"],[q.business_days_open,""],[districtName(q.district_code),""],[q.street_segment,"segment"]]);
-    tr.children[1].append(el("span",q.band,"pill "+pills[bands.indexOf(q.band)]));
+    tr.children[1].append(el("span",bandLabel(q.band),"pill "+pills[bands.indexOf(q.band)]));
   }
 }
 for(const key of ["district","timing","order","search"])$(key).addEventListener("input",renderQueue);
@@ -257,7 +259,7 @@ function renderCapacity(){
   });
   const changed = res[0].selected.filter(id=>!res[2].selected.includes(id)).length;
   $("capacityRead").textContent=n===0?"No orders selected. Set review slots to compare the queue orders.":
-    `At ${n} slots, oldest first leaves ${res[0].left} past-due or due-today orders outside the list. Earliest deadline leaves ${res[1].left}. District batching swaps ${changed} of the oldest-first selections and changes source district ${res[2].step} times, compared with ${res[0].step} under oldest first.`;
+    `At ${n} slots, oldest first leaves ${res[0].left} orders due by the snapshot date outside the list. Earliest deadline leaves ${res[1].left}. District batching swaps ${changed} of the oldest-first selections and changes source district ${res[2].step} times, compared with ${res[0].step} under oldest first.`;
 }
 $("slots").addEventListener("input",renderCapacity);renderCapacity();
 for(const [code,counts] of Object.entries(D.district_summary)){
@@ -270,14 +272,15 @@ $("historyNote").textContent=`Across the dated extract, ${number.format(history.
 D.late_closures.slice(0,10).forEach(q=>addRow($("late"),[[q.work_order_id,"id"],[q.source_due_on,"date"],
   [q.completed_on,"date"],[q.calendar_days_past_due_at_closure,""],[q.street_segment,"segment"]]));
 $("downloadLate").addEventListener("click",()=>csvDownload(D.late_closures,csvLate,"seattle-late-closures-"+D.as_of+".csv"));
-$("downloadMonthly").addEventListener("click",()=>csvDownload(D.monthly,Object.keys(D.monthly[0]??{month:""}),"seattle-monthly-workload-"+D.as_of+".csv"));
+const fullMonths = D.monthly.filter(row=>row.month<D.as_of.slice(0,7));
+$("downloadMonthly").addEventListener("click",()=>csvDownload(fullMonths,Object.keys(fullMonths[0]??{month:""}),"seattle-monthly-workload-"+D.as_of+".csv"));
 $("sourceBrief").textContent=`${number.format(D.source_rows)} public rows were read. ${D.pending_in_source} were pending, of which ${D.held_pending} could not be routed because a field needed a check.`;
 $("calendarNote").textContent=`The comparison starts the day after intake and counts weekdays, excluding observed City holidays. The published due date still stands as its own date. The worklist has ${D.different_due_dates} mismatches and ${D.missing_source_due_dates} missing source due dates.`;
 for(const [reason,count] of Object.entries(history.exclusion_counts))addRow($("checks"),[[reason,""],[number.format(count),""]]);
 $("downloadChecks").addEventListener("click",()=>csvDownload(Object.entries(history.exclusion_counts).map(([reason,records])=>({reason,records})),["reason","records"],"seattle-history-screening-counts.csv"));
 function chart(){
   const s=$("chart"), ns="http://www.w3.org/2000/svg";
-  const months=D.monthly.filter(x=>x.month<D.as_of.slice(0,7));
+  const months=fullMonths;
   if(!months.length)return;
   const svg=(kind,attrs,text)=>{
     const e=document.createElementNS(ns,kind);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);

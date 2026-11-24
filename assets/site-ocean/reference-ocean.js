@@ -2299,6 +2299,7 @@ class OceanEngine {
     onMotionPreference = ()=>{
         if (this.reducedMotion.matches) {
             cancelAnimationFrame(this.raf);
+            this.onPointerLeave();
             this.drawStill();
         } else {
             this.schedule();
@@ -2360,7 +2361,7 @@ if (canvas && typeof ResizeObserver !== "undefined" && typeof IntersectionObserv
   try {
     const engine = new OceanEngine(canvas, portfolioSharks(), document.documentElement.dataset.referenceTheme === "light");
     engine.setPaused(document.hidden);
-    window.addEventListener("portfolio-motion", () => engine.setPaused(document.hidden));
+    window.addEventListener("portfolio-motion", event => engine.setPaused(event.detail.paused));
     window.addEventListener("reference-theme", event => engine.setTheme(Boolean(event.detail.light)));
   } catch (error) {
     console.warn("Decorative reference ocean is unavailable.", error);

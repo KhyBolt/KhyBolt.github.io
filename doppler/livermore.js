@@ -10,9 +10,10 @@
   const scoreLegend = byId('score-legend');
   const studyLegend = byId('study-legend');
   const assetPath = './assets/livermore/';
-  const detail = byId('detail');
+  const candidateKey = byId('candidate-key');
   const resolution = byId('resolution');
-  const scoreBands = [[15, '#691019'], [20, '#b82e32'], [35, '#dd5d3e'], [100, '#ec8d59'], [500, '#f0b27e'], [Infinity, '#e9cfab']];
+  const scoreBands = [[1, '#691019', '<1'], [2, '#b82e32', '1–<2'], [4, '#dd5d3e', '2–<4'], [10, '#ec8d59', '4–<10'], [50, '#f0b27e', '10–<50'], [Infinity, '#e9cfab', '≥50']];
+  const grids = [[1000, 0, '1 km'], [100, 13, '100 m'], [25, 15.5, '25 m']];
   const studyTracks = [
     { identifier: 'N9393T', anchor: 2, color: '#4275b4' },
     { identifier: 'N86LP', anchor: 9, color: '#873a9d', dashArray: '7 5', labelLeft: true },
@@ -20,13 +21,25 @@
 
   function showStatus(message) {
     status.textContent = message;
-    status.hidden = !message;
   }
 
   async function readJSON(name) {
     const response = await fetch(assetPath + name);
     if (!response.ok) throw new Error('Replay data could not load');
     return response.json();
+  }
+
+  function showScoreLegend(bands, note) {
+    const items = bands.map(([label, color]) => {
+      const item = document.createElement('li');
+      item.style.setProperty('--swatch', color);
+      item.textContent = label;
+      return item;
+    });
+    byId('bands').replaceChildren(...items);
+    byId('scale-note').textContent = note;
+    surface.setAttribute('aria-describedby', 'livermore-help livermore-scale-note');
+    scoreLegend.hidden = false;
   }
 
   function createScoreLayer(L, stage, scoreIndex, ringIndex) {
@@ -84,16 +97,17 @@
   }
 
   function createStudyLayer(L, tracks) {
+    const matches = (feature, track) => feature.properties.case.startsWith(track.identifier + '_');
     const geometry = L.geoJSON(tracks, {
       pane: 'livermore-study',
       interactive: false,
       style: feature => ({
-        ...studyTracks.find(track => feature.properties.id.startsWith(track.identifier + '-')),
+        ...studyTracks.find(track => matches(feature, track)),
         className: 'livermore-study-track', weight: 3, opacity: 1, smoothFactor: 0,
       }),
     });
     const labels = studyTracks.map(track => {
-      const coordinates = tracks.features.find(feature => feature.properties.id.startsWith(track.identifier + '-'))?.geometry?.coordinates;
+      const coordinates = tracks.find(feature => matches(feature, track))?.geometry?.coordinates;
       if (!coordinates || coordinates.length <= track.anchor + 1) throw new Error('Missing study path');
       return studyLabel(L, coordinates, track);
     });
@@ -114,20 +128,48 @@
     }).bindTooltip(label, { direction: kind === 'estimate' ? 'right' : 'left' });
   }
 
+  function addReplayGrid(L, map, grid) {
+    const scoreIndex = grid.cell_row_columns.indexOf('training_mse_hz2');
+    const ringIndex = grid.cell_row_columns.indexOf('closed_wgs84_lon_lat_ring');
+    if (scoreIndex < 0 || ringIndex < 0) throw new Error('Unexpected score grid');
+    const layers = grids.flatMap(([spacing, threshold, label]) => {
+      const stage = grid.stages.find(stage => stage.spacing_m === spacing && stage.rows.length);
+      return stage ? [{ layer: createScoreLayer(L, stage, scoreIndex, ringIndex), threshold, label }] : [];
+    });
+    if (!layers.length) return;
+    const updateGrid = () => {
+      let visible = '';
+      for (const { layer, threshold, label } of layers) {
+        if (map.getZoom() >= threshold) {
+          if (!map.hasLayer(layer)) layer.addTo(map);
+          visible = label;
+        } else if (map.hasLayer(layer)) layer.remove();
+      }
+      const note = visible ? 'Finest grid shown: ' + visible : 'Zoom in to see the search grid.';
+      if (resolution.textContent !== note) resolution.textContent = note;
+    };
+    showScoreLegend(scoreBands.map(([, color, label]) => [label, color]),
+      'The 1 km grid searches all pairs. Finer grids use the locked winning pair and clock time. These scores show fit, not confidence.');
+    map.on('zoomend', updateGrid);
+    updateGrid();
+  }
+
   async function createMap() {
-    const data = await readJSON('livermore-assisted-real-audio-map-v1.json');
+    const replayName = surface.dataset.replay;
+    const [study, results] = await Promise.all([
+      readJSON('study-reference.geojson'),
+      readJSON(replayName).catch(() => null),
+    ]);
+    const candidate = results?.markers?.model_best_fit;
+    const replay = results?.schema === 'livermore-automatic-real-audio-map/v1' &&
+      results.mode === 'full_day_all_pairs' && results.reference_used_in_fit === false &&
+      results.verified === false && candidate?.geometry?.type === 'Point' &&
+      candidate.properties?.verified === false ? results : null;
     const L = window.L;
-    const stages = data.score_grid.stages;
-    const columns = data.score_grid.cell_row_columns;
-    const scoreIndex = columns.indexOf('training_mse_hz2');
-    const ringIndex = columns.indexOf('closed_wgs84_lon_lat_ring');
-    if (data.schema !== 'livermore-assisted-real-audio-map/v1' || data.reference_used_in_fit !== false ||
-        data.markers.model_best_fit.properties.verified !== false ||
-        scoreIndex < 0 || ringIndex < 0 || stages.map(stage => stage.spacing_m).join() !== '1000,100,25' ||
-        stages.map(stage => stage.rows.length).join() !== '121,441,441') throw new Error('Unexpected example data');
     const projection = L.CRS.EPSG3857;
+    const searchBoundary = replay?.search_boundary || await readJSON('search-boundary.json');
     const outlineOptions = { pane: 'livermore-boundary', interactive: false, style: { fill: false, smoothFactor: 0 } };
-    const outline = L.geoJSON(data.search_boundary, {
+    const outline = L.geoJSON(searchBoundary, {
       ...outlineOptions, style: { ...outlineOptions.style, color: '#f4f4f4', weight: 1.8 },
     });
     const searchBounds = outline.getBounds();
@@ -166,7 +208,9 @@
     L.control.scale({ imperial: false, maxWidth: 86 }).addTo(map);
 
     const failedTiles = new Set();
-    const report = () => showStatus(failedTiles.size ? 'Some terrain tiles could not load. The search cells and flight paths are still shown.' : '');
+    const scoreError = replay ? '' : 'The replay results couldn’t load.';
+    const report = () => showStatus([scoreError, failedTiles.size ? 'Some terrain tiles couldn’t load.' : ''].filter(Boolean).join(' '));
+    report();
     L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 18,
       maxNativeZoom: 15,
@@ -187,33 +231,26 @@
       pane.style.zIndex = order;
       if (paneName !== 'livermore-points') pane.style.pointerEvents = 'none';
     }
-    const layers = stages.map(stage => createScoreLayer(L, stage, scoreIndex, ringIndex));
-    layers[0].addTo(map);
     const updateMapControls = () => {
       const zoom = map.getZoom();
       zoomIn.disabled = zoom >= map.getMaxZoom();
       zoomOut.disabled = zoom <= map.getMinZoom();
-      for (const [i, threshold] of [[1, 13], [2, 15.5]]) {
-        if (zoom >= threshold && !map.hasLayer(layers[i])) layers[i].addTo(map);
-        if (zoom < threshold && map.hasLayer(layers[i])) layers[i].remove();
-      }
-      const highest = zoom >= 15.5 ? '25 m' : zoom >= 13 ? '100 m' : '1 km';
-      const label = 'Finest grid shown: ' + highest;
-      if (resolution.textContent !== label) resolution.textContent = label;
     };
-    L.geoJSON(data.search_boundary, {
+    L.geoJSON(searchBoundary, {
       ...outlineOptions, style: { ...outlineOptions.style, color: '#252829', weight: 5 },
     }).addTo(map);
     outline.addTo(map);
-    createStudyLayer(L, data.study_flight_paths).addTo(map);
-    const reference = pointLayer(L, data.markers.published_recorder, 'reference', 'Published phone location').addTo(map);
-    const estimate = pointLayer(L, data.markers.model_best_fit, 'estimate', 'Best-fit estimate (unverified)').addTo(map);
+    createStudyLayer(L, study.features.filter(feature => feature.properties.kind === 'track')).addTo(map);
+    const observer = study.features.find(feature => feature.properties.kind === 'observer');
+    pointLayer(L, observer, 'reference', 'Study-reported phone location').addTo(map);
     studyLegend.hidden = false;
 
-    detail.addEventListener('click', () => {
-      const points = L.latLngBounds([reference.getLatLng(), estimate.getLatLng()]);
-      map.setView(points.getCenter(), 16, { animate: false });
-    });
+    if (replay) {
+      pointLayer(L, candidate, 'estimate', 'Best fit').addTo(map);
+      candidateKey.hidden = false;
+      if (replay.score_grid) addReplayGrid(L, map, replay.score_grid);
+    }
+
     zoomIn.addEventListener('click', () => map.zoomIn());
     zoomOut.addEventListener('click', () => map.zoomOut());
     fit.addEventListener('click', fitSearch);
@@ -227,6 +264,7 @@
     surface.hidden = true;
     tools.hidden = true;
     fallback.hidden = false;
+    studyLegend.hidden = true;
     scoreLegend.hidden = true;
     showStatus('The map could not load. Try refreshing the page.');
   });
