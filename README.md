@@ -15,5 +15,6 @@ On localhost, Ask uses local project answers unless the form points to a same-or
 
 ## Credits
 
+- Doppler thumbnail: a spectrogram of the N86LP flyover, 28–72 seconds into [Praveen Pathak’s Livermore recording](https://doi.org/10.5281/zenodo.24075029), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 - ASCII shark renderer and schooling simulation adapted from [stackedlol/ascii-sharks](https://github.com/stackedlol/ascii-sharks).
 - Fonts: [Geist Mono, SIL Open Font License](assets/fonts/LICENSE-Geist-Mono.txt) and [Noto Mono, Apache 2.0](assets/fonts/LICENSE-Noto-Mono.txt).
